@@ -1,0 +1,7 @@
+# Normalise line endings to LF in the repository, so scripts and Docker builds work for Windows and Unix reviewers alike.
+* text=auto eol=lf
+
+# Binary files
+*.png binary
+*.jpg binary
+*.ico binary
