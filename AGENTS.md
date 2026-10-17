@@ -53,7 +53,8 @@ SQL, PostgreSQL 18.
 - These rules see the file-editing tools and the command text only. A shell command that writes a file (`sed -i`,
   a redirect, `Set-Content`) or an unusual git spelling can slip past them, so never use one on a guarded file.
   CI repeats every gate, and `scripts/check.py` also fails on a config file that would override
-  `pyproject.toml`, on a domain import outside the standard library, and on a `noqa` that hides a banned API.
+  `pyproject.toml`, a domain import outside the standard library, a `noqa` that hides a banned API, a `conftest.py`
+  hook that can hide tests, and any test run where a test was skipped, xfailed or deselected.
 
 ## Data and wording
 

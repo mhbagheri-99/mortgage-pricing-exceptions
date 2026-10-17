@@ -171,11 +171,51 @@ def find_lint_escapes(root: Path) -> list[str]:
     return errors
 
 
-def tool(*command: str) -> tuple[bool, str]:
+# pytest hooks that can drop, deselect or relabel tests before anyone sees them.
+HIDING_HOOKS = frozenset(
+    {
+        "pytest_ignore_collect",
+        "pytest_collect_file",
+        "pytest_pycollect_makeitem",
+        "pytest_collection_modifyitems",
+        "pytest_deselected",
+        "pytest_runtest_setup",
+        "pytest_runtest_makereport",
+        "pytest_report_teststatus",
+        "pytest_terminal_summary",
+    }
+)
+NOT_RUN = re.compile(r"(\d+) (skipped|xfailed|xpassed|deselected)")
+
+
+def find_collection_hooks(root: Path) -> list[str]:
+    errors = []
+    for path in walk(root):
+        if path.name != "conftest.py":
+            continue
+        relative = path.relative_to(root).as_posix()
+        for node in ast.parse(path.read_text(encoding="utf-8")).body:
+            if isinstance(node, ast.FunctionDef) and node.name in HIDING_HOOKS:
+                errors.append(f"{relative} defines {node.name}, which can hide tests from the run")
+    return errors
+
+
+def tool(*command: str, cwd: Path = ROOT) -> tuple[bool, str]:
     result = subprocess.run(
-        list(command), cwd=ROOT, capture_output=True, text=True, encoding="utf-8", errors="replace"
+        list(command), cwd=cwd, capture_output=True, text=True, encoding="utf-8", errors="replace"
     )
     return result.returncode == 0, (result.stdout + result.stderr).strip()
+
+
+def run_tests(root: Path, test_dirs: list[str]) -> tuple[bool, str]:
+    """Run the tests, and fail when any of them did not run: this catches a skip however it was written."""
+    ok, output = tool(sys.executable, "-m", "pytest", "-q", "-rsxX", *test_dirs, cwd=root)
+    summary = output.splitlines()[-1] if output else ""
+    not_run = NOT_RUN.findall(summary)
+    if ok and not_run:
+        counts = ", ".join(f"{n} {kind}" for n, kind in not_run)
+        return False, f"{output}\nEvery test must run, but {counts}."
+    return ok, output
 
 
 def listed(errors: list[str]) -> tuple[bool, str]:
@@ -202,9 +242,14 @@ def gates(mode: str) -> list[tuple[str, Callable[[], tuple[bool, str]]]]:
         ("skip markers", lambda: listed(find_skip_markers(ROOT))),
         (
             "sidestep scans",
-            lambda: listed(find_shadow_config(ROOT) + find_domain_imports(ROOT) + find_lint_escapes(ROOT)),
+            lambda: listed(
+                find_shadow_config(ROOT)
+                + find_domain_imports(ROOT)
+                + find_lint_escapes(ROOT)
+                + find_collection_hooks(ROOT)
+            ),
         ),
-        ("tests", lambda: tool(python, "-m", "pytest", "-q", *test_dirs)),
+        ("tests", lambda: run_tests(ROOT, test_dirs)),
     ]
 
 

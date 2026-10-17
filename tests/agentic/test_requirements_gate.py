@@ -122,7 +122,31 @@ def test_a_comment_that_silences_the_banned_api_rule_fails(tmp_path: Path) -> No
     ]
 
 
+def test_a_conftest_hook_that_can_hide_tests_fails(tmp_path: Path) -> None:
+    (tmp_path / "tests" / "integration").mkdir(parents=True)
+    (tmp_path / "tests" / "integration" / "conftest.py").write_text(
+        "def pytest_configure(config):\n    pass\n\n\n"
+        "def pytest_collection_modifyitems(config, items):\n    items[:] = []\n",
+        encoding="utf-8",
+    )
+    hidden = "pytest_collection_modifyitems, which can hide tests from the run"
+    assert check.find_collection_hooks(tmp_path) == [f"tests/integration/conftest.py defines {hidden}"]
+
+
+def test_the_test_run_fails_when_any_test_does_not_run(tmp_path: Path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "import pytest\n\n\ndef test_runs():\n    assert True\n\n\n"
+        "def test_dodges_the_static_scan():\n    getattr(pytest, 'sk' + 'ip')('later')\n",
+        encoding="utf-8",
+    )
+    ok, output = check.run_tests(tmp_path, ["tests"])
+    assert not ok
+    assert "every test must run" in output.lower()
+
+
 def test_the_real_repository_passes_the_sidestep_scans() -> None:
     assert check.find_shadow_config(ROOT) == []
     assert check.find_domain_imports(ROOT) == []
     assert check.find_lint_escapes(ROOT) == []
+    assert check.find_collection_hooks(ROOT) == []
