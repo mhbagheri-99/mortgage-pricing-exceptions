@@ -1,0 +1,33 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    # Pinned: GitHub moves ubuntu-latest to Ubuntu 26.04 between 19 October and 19 November 2026.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          version: "0.13.1"
+
+      - name: Install the locked packages
+        run: uv sync --locked
+
+      - name: Every gate (lint, format, types, layers, requirement ids, skip markers, every test)
+        run: uv run python scripts/check.py --all
+
+      - name: The app starts with one command (N6)
+        run: |
+          docker compose up --build --detach
+          curl --fail --silent --show-error --retry 30 --retry-delay 2 --retry-all-errors http://localhost:8000/health
+          docker compose down --volumes
