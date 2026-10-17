@@ -1,0 +1,99 @@
+[project]
+name = "mortgage-pricing-exceptions"
+version = "0.1.0"
+description = "A small service for mortgage pricing exception requests: create, review and read the outcome."
+requires-python = ">=3.15"
+dependencies = [
+    "alembic==1.20.0",
+    "fastapi==0.143.3",
+    "psycopg[binary]==3.3.6",
+    "pydantic==2.14.1",
+    "sqlalchemy==2.1.5",
+    "uvicorn==0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.13.1,<0.14"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pricing_exceptions"
+
+[dependency-groups]
+dev = [
+    "httpx2==2.13.1",
+    "import-linter==2.15",
+    "mypy==2.4.0",
+    "pytest==9.1.1",
+    "ruff==0.17.1",
+    "testcontainers==4.15.0",
+]
+
+# ---- Lint and format -------------------------------------------------------
+[tool.ruff]
+line-length = 110
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "TID", "DTZ", "PT", "SIM", "C4", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests assert, and the guardrail tests run the hooks as subprocesses.
+"tests/**" = ["S101", "S603", "S607"]
+# The hooks and the gate runner call git and the check tools.
+".claude/hooks/**" = ["S603", "S607"]
+"scripts/**" = ["S603", "S607"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"psycopg2".msg = "Use psycopg 3: import psycopg."
+"sqlalchemy.orm".msg = "No ORM here: write SQL with sqlalchemy.text()."
+"pydantic.v1".msg = "Use Pydantic v2."
+"datetime.datetime.utcnow".msg = "Use datetime.now(UTC) from the injected clock."
+"time.sleep".msg = "Wait for a condition with a deadline, never a fixed sleep (design doc 7.10)."
+"sqlalchemy.select".msg = "Write SQL with sqlalchemy.text(), not the query builder."
+"sqlalchemy.insert".msg = "Write SQL with sqlalchemy.text(), not the query builder."
+"sqlalchemy.update".msg = "Write SQL with sqlalchemy.text(), not the query builder."
+"sqlalchemy.delete".msg = "Write SQL with sqlalchemy.text(), not the query builder."
+"sqlalchemy.Table".msg = "Write SQL with sqlalchemy.text(); tables live in the migrations."
+"sqlalchemy.MetaData".msg = "Write SQL with sqlalchemy.text(); tables live in the migrations."
+"sqlalchemy.Column".msg = "Write SQL with sqlalchemy.text(); tables live in the migrations."
+
+# ---- Types -----------------------------------------------------------------
+[tool.mypy]
+strict = true
+files = ["src"]
+
+# ---- Layers ----------------------------------------------------------------
+[tool.importlinter]
+root_package = "pricing_exceptions"
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "The domain imports no web or database library (check.py: standard library only)"
+type = "forbidden"
+source_modules = ["pricing_exceptions.domain"]
+forbidden_modules = ["fastapi", "starlette", "pydantic", "sqlalchemy", "psycopg"]
+
+[[tool.importlinter.contracts]]
+name = "Layers run api, then service, then db, then domain"
+type = "layers"
+layers = [
+    "pricing_exceptions.api",
+    "pricing_exceptions.service",
+    "pricing_exceptions.db",
+    "pricing_exceptions.domain",
+]
+
+[[tool.importlinter.contracts]]
+name = "The api never imports db, SQLAlchemy or psycopg, so it cannot run SQL itself"
+type = "forbidden"
+source_modules = ["pricing_exceptions.api"]
+forbidden_modules = ["pricing_exceptions.db", "sqlalchemy", "psycopg"]
+# Through the service layer is the intended route (api -> service -> db); only a direct import is forbidden.
+allow_indirect_imports = true
+
+# ---- Tests -----------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers"]
+markers = ["req(id): the requirement id (FR-n or Nn) this test proves; see docs/requirements.md"]
+filterwarnings = ["error::DeprecationWarning", "error::PendingDeprecationWarning"]
