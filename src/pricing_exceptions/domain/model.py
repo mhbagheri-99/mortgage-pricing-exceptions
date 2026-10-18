@@ -92,3 +92,12 @@ class RequestEvent:
     discount_bps: int
     reason: str = field(repr=False)
     comment: str | None = field(default=None, repr=False)
+
+
+@dataclass(frozen=True, slots=True)
+class RequestRecord:
+    """A request with its whole history, oldest event first: every response that shows a request is built
+    from one of these, read in one statement by `db.requests.read_request()` (design doc 6.5)."""
+
+    request: PricingExceptionRequest
+    history: tuple[RequestEvent, ...]

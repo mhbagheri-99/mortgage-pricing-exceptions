@@ -5,6 +5,7 @@ The limits are our assumptions (design doc 3.4): the brief sets none, so each is
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from uuid import UUID
 
 from pricing_exceptions.domain.errors import (
     Forbidden,
@@ -20,6 +21,7 @@ from pricing_exceptions.domain.model import (
     Outcome,
     PricingExceptionRequest,
     RequestEvent,
+    RequestRecord,
     Role,
     Status,
 )
@@ -35,6 +37,11 @@ def _text_problem(text: str) -> str | None:
         return "must not be blank"
     if "\x00" in text:  # PostgreSQL text cannot hold NUL; without this check the insert fails as a 500
         return "must not contain the NUL character"
+    if not text.isascii():  # JSON can carry half a surrogate pair, which UTF-8 cannot encode: the same 500
+        try:
+            text.encode("utf-8")
+        except UnicodeEncodeError:
+            return "must be valid Unicode text"
     if len(text) > MAX_TEXT_CHARS:
         return f"must be at most {MAX_TEXT_CHARS} characters"
     return None
@@ -114,3 +121,72 @@ def decide(
         comment=verdict.comment,
     )
     return decided, event
+
+
+def submit(
+    actor: Actor, application_id: str, terms: Terms, request_id: UUID, now: datetime
+) -> tuple[PricingExceptionRequest, RequestEvent]:
+    """Create a request at revision 1, and return it with its SUBMITTED event.
+
+    Only the role is checked here (403). Whether the application exists is reference data the service looks
+    up; one request per application is the database's unique constraint, the one rule that spans rows
+    (design doc 4.1).
+    """
+    if Role.RELATIONSHIP_MANAGER not in actor.roles:
+        raise Forbidden("Only a relationship manager can create a request.")
+    request = PricingExceptionRequest(
+        id=request_id,
+        application_id=application_id,
+        requested_by=actor.id,
+        status=Status.PENDING_REVIEW,
+        revision=1,
+        discount_bps=terms.discount_bps,
+        reason=terms.reason,
+        created_at=now,
+    )
+    event = RequestEvent(
+        request_id=request_id,
+        event_type=EventType.SUBMITTED,
+        revision=1,
+        actor_id=actor.id,
+        occurred_at=now,
+        discount_bps=terms.discount_bps,
+        reason=terms.reason,
+    )
+    return request, event
+
+
+def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
+    """True when this create repeats the one that made `existing`: the same requester and the same terms,
+    exactly as sent (design doc D3).
+
+    It compares with the SUBMITTED event, which never changes, not with the current row, so a retry that
+    arrives after an amendment or a decision still replays. Anything else is a different create.
+    """
+    submitted = next((e for e in existing.history if e.event_type is EventType.SUBMITTED), None)
+    if submitted is None:
+        return False
+    return (submitted.actor_id, submitted.discount_bps, submitted.reason) == (
+        actor.id,
+        terms.discount_bps,
+        terms.reason,
+    )
+
+
+_STAFF = frozenset({Role.RELATIONSHIP_MANAGER, Role.REVIEWER})
+
+
+def require_staff(actor: Actor) -> None:
+    """Reading requests is for staff: relationship managers and reviewers. The mortgage process reads only
+    approved discounts (design doc 5.1)."""
+    if not actor.roles & _STAFF:
+        raise Forbidden("Only relationship managers and reviewers can read requests.")
+
+
+_DECISION_EVENTS = frozenset(_EVENT_FOR.values())
+
+
+def latest_decision(history: tuple[RequestEvent, ...]) -> RequestEvent | None:
+    """The newest decision in a request's history, or None. After a resubmission it is still the decline the
+    resubmission answers, although the row's decision columns are empty (design doc 5.2)."""
+    return next((e for e in reversed(history) if e.event_type in _DECISION_EVENTS), None)

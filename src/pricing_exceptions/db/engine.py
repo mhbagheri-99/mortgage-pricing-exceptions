@@ -21,6 +21,7 @@ def make_engine(database_url: str) -> Engine:
         # connect_timeout bounds opening a new connection; without it an unreachable database hangs a call
         # for minutes (130 s on Windows in P1), far past the 8 s budget.
         connect_args={"options": CONNECTION_OPTIONS, "connect_timeout": 3},
+        hide_parameters=True,  # an error message never carries a bound value, such as a reason (7.9)
     )
 
 

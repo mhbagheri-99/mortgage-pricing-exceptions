@@ -1,11 +1,12 @@
 """What can go wrong: one class per problem type in the error catalogue (design doc 5.5).
 
-Each class carries its catalogue `code`. The api adds the HTTP status (P3); the domain never knows about HTTP.
+Each class carries its catalogue `code`. The api adds the HTTP status (api/problems.py); the domain never
+knows about HTTP.
 """
 
 from typing import ClassVar
 
-from pricing_exceptions.domain.model import Status
+from pricing_exceptions.domain.model import RequestRecord, Status
 
 
 class DomainError(Exception):
@@ -22,6 +23,16 @@ class ValidationFailed(DomainError, ValueError):
         super().__init__("; ".join(f"{field} {problem}" for field, problem in problems.items()))
 
 
+class ApplicationNotFound(DomainError):
+    """422: the body names a mortgage application that does not exist."""
+
+    code = "application-not-found"
+
+    def __init__(self, application_id: str) -> None:
+        self.application_id = application_id
+        super().__init__(f"There is no mortgage application {application_id}.")
+
+
 class Forbidden(DomainError):
     """403: the actor lacks the role the action needs."""
 
@@ -34,7 +45,37 @@ class FourEyesViolation(DomainError):
     code = "four-eyes-violation"
 
 
-class InvalidState(DomainError):
+class NotFound(DomainError):
+    """404: no request with that id, or no application with the id in the path. The catalogue gives it no
+    type of its own, so the api answers `about:blank`."""
+
+    code = "not-found"
+
+
+class Conflict(DomainError):
+    """409: the action conflicts with the request as it is now.
+
+    `current` is that request, for the response body: every 409 carries it (design doc 5.3), so a client whose
+    response was lost can see whether its change landed. The pure rules cannot read it; the service fills it
+    in before its transaction ends.
+    """
+
+    current: RequestRecord | None = None
+
+
+class RequestExists(Conflict):
+    """409: the application already has a request, and this create is not a retry of the one that made it."""
+
+    code = "request-exists"
+
+    def __init__(self, current: RequestRecord) -> None:
+        self.current = current
+        super().__init__(
+            f"Mortgage application {current.request.application_id} already has a request; revise it instead."
+        )
+
+
+class InvalidState(Conflict):
     """409: the action is not allowed in the request's status; for example, approved is final."""
 
     code = "invalid-state"
@@ -44,7 +85,7 @@ class InvalidState(DomainError):
         super().__init__(f"A request that is {status} cannot be {action}.")
 
 
-class StaleRevision(DomainError):
+class StaleRevision(Conflict):
     """409: the caller named a revision that is not the current one."""
 
     code = "stale-revision"
