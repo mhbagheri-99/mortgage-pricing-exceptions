@@ -37,6 +37,11 @@ def _text_problem(text: str) -> str | None:
         return "must not be blank"
     if "\x00" in text:  # PostgreSQL text cannot hold NUL; without this check the insert fails as a 500
         return "must not contain the NUL character"
+    if not text.isascii():  # JSON can carry half a surrogate pair, which UTF-8 cannot encode: the same 500
+        try:
+            text.encode("utf-8")
+        except UnicodeEncodeError:
+            return "must be valid Unicode text"
     if len(text) > MAX_TEXT_CHARS:
         return f"must be at most {MAX_TEXT_CHARS} characters"
     return None

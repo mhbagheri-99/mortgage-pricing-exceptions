@@ -109,6 +109,8 @@ def install(app: FastAPI) -> None:
             return problem(
                 request, 401, "unauthenticated", "Who is calling is unknown", exc.detail, headers=exc.headers
             )
+        if exc.status_code == 400:  # FastAPI's answer to a body it could not read at all, such as bad UTF-8
+            return problem(request, 400, "malformed-request", "The body is not valid JSON")
         phrase = HTTPStatus(exc.status_code).phrase
         detail = exc.detail if exc.detail != phrase else None
         return problem(request, exc.status_code, None, phrase, detail, headers=exc.headers)
@@ -133,7 +135,10 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(database.DatabaseError)
     def database_error(request: Request, exc: database.DatabaseError) -> JSONResponse:
         if not database.is_unavailable(exc):
-            raise exc  # any other database error is a bug: the 500 handler answers it
+            # Any other database error is a bug. Its message holds the bound values and PostgreSQL's failing
+            # row, which can include a reason, so it is answered here and never re-raised to the server's log.
+            log.error("unexpected database error: action=%s %s", _action(request), database.describe(exc))
+            return problem(request, 500, None, HTTPStatus.INTERNAL_SERVER_ERROR.phrase)
         log.warning("database unavailable: action=%s %s", _action(request), database.describe(exc))
         return problem(
             request,
