@@ -135,8 +135,22 @@ def test_the_page_has_no_inline_script_or_style() -> None:
 
 
 # The ways a script turns text into markup or code. Server text (a reason, a comment) must only ever be set as
-# text, through textContent (design doc 7.5).
-MARKUP_SINKS = ("innerHTML", "outerHTML", "insertAdjacentHTML", "document.write", "eval(", "new Function(")
+# text, through textContent (design doc 7.5). The newer HTML parsers are listed too (P7 review).
+MARKUP_SINKS = (
+    "innerHTML",
+    "outerHTML",
+    "insertAdjacentHTML",
+    "document.write",
+    "eval(",
+    "new Function(",
+    "setHTMLUnsafe",
+    "parseHTMLUnsafe",
+    "createContextualFragment",
+    "DOMParser",
+    "srcdoc",
+    'setTimeout("',
+    'setInterval("',
+)
 
 
 def test_the_script_never_writes_markup() -> None:

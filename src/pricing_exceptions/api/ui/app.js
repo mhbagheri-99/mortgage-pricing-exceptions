@@ -1,5 +1,6 @@
 // The page for pricing exception requests (design doc D11, 6.6). It calls only the public API and
-// /demo/users, and holds no business rule: every refusal it shows comes from the server, word for word.
+// /demo/users, and decides no access: the actions it offers come from the server's `permissions`, and every
+// refusal it shows is the server's own wording. Its labels describe the rules; the server enforces them.
 // Text from the server is only ever set as text, through textContent or append() with a string, so a reason
 // that looks like markup stays text (design doc 7.5).
 
@@ -569,8 +570,8 @@ function reviseForm(record) {
     el("p", {
       className: "who",
       text: declined
-        ? `New terms become revision ${record.revision + 1} and go back to a reviewer.`
-        : `Your change becomes revision ${record.revision + 1}, and a reviewer decides again.`,
+        ? "New terms become the next revision and go back to a reviewer."
+        : "Your change becomes the next revision, and a reviewer decides again.",
     }),
     field(
       "Discount in basis points",

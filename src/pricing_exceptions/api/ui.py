@@ -1,7 +1,8 @@
 """The browser page at /ui and the user list its acting-as switcher reads (design doc D11, 6.6).
 
 The page is three static files in `ui/`. It calls only the public /api/v1 endpoints, plus /demo/users, and
-holds no business rule: every refusal it shows comes from the server.
+decides no access: the actions it offers come from the server's `permissions`, and every refusal it shows is
+the server's own wording.
 """
 
 import os
@@ -20,12 +21,14 @@ UI_DIR = Path(__file__).parent / "ui"
 # Sent with the page's files only (design doc 7.5). default-src 'self' lets the page load its own script,
 # style sheet and API calls and nothing else, so no inline script can run even if text were ever turned into
 # markup. The other three directives are the ones default-src does not cover. nosniff makes the browser trust
-# each file's declared type instead of guessing.
+# each file's declared type instead of guessing. no-cache makes it ask again on every load (a cheap 304 when
+# nothing changed), so after a rebuild it never runs an old app.js against the new API (P7 review).
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
     ),
     "X-Content-Type-Options": "nosniff",
+    "Cache-Control": "no-cache",
 }
 
 

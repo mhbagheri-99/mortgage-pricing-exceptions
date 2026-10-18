@@ -152,8 +152,9 @@ class RequestCurrent(RequestSummary):
 
 
 class PermissionOut(BaseModel):
-    """Whether the caller may take one action now. If not, the problem type and the detail the action would
-    be refused with, so a client can say why instead of offering a button that can only fail (P7)."""
+    """Whether the caller may take one action now. If not, `problem` is the problem code the action would be
+    refused with (the last part of the refusal's `type`, such as `four-eyes-violation`) and `detail` its
+    reason, so a client can say why instead of offering a button that can only fail (P7)."""
 
     allowed: bool
     problem: str | None

@@ -52,7 +52,8 @@ docker stop pricing-identity-off
 
 Phones are not a target: below about 820 pixels wide the panes stack one after another and stay usable.
 
-Last run: 18 October 2026, on fresh seed data with this page: steps 1 to 4, 8 to 14 and the mortgage-process
-panel (NONE before an approval, the approved discount right after it, on MA-1006 and MA-1007), and step 18's
-`permissions` in the API description. Steps 5 to 7 and 15 to 20 ran earlier the same day on earlier versions of
-the page; their code is unchanged.
+Last run: 18 October 2026, on fresh seed data with this page: steps 1 to 4, 8 to 16, 19 and 20, the
+mortgage-process panel (NONE before an approval, the approved discount right after it, on MA-1006 and MA-1007),
+and step 18's `permissions` in the API description. Steps 5 to 7, 17 and step 18's Swagger check ran earlier the
+same day, on this layout before the server reported permissions; the code they exercise (Load more, the create
+dialog, the headers on `/docs`) has not changed since.
