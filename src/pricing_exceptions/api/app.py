@@ -1,12 +1,17 @@
-"""The FastAPI application. P1 has only /health; the contract endpoints arrive in P3 and P4."""
+"""The FastAPI application.
+
+Red skeleton for P3: the new arguments only; the contract endpoints arrive with the code that makes the tests
+pass.
+"""
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
+from pricing_exceptions.domain.model import Clock
 from pricing_exceptions.service import Engine, queries
 
 
-def create_app(engine: Engine) -> FastAPI:
+def create_app(engine: Engine, clock: Clock, *, demo_identity: bool) -> FastAPI:
     app = FastAPI(title="Pricing exception service", version="0.1.0")
 
     @app.get("/health", tags=["operations"])

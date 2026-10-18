@@ -2,8 +2,8 @@
 lock is taken. Text is checked but never rewritten: it is kept exactly as sent, so a retried create compares
 equal (5.7). The limits are our assumptions; the brief sets none.
 
-The terms tests carry no FR-1 marker yet: FR-1 is first proven by P3's create API test, and a marker here
-would let the requirement gate pass without it (P2 review finding 2). P3 marks them once that test exists.
+The terms tests carry FR-1 since P3, whose create API tests prove FR-1 end to end; until then a marker here
+would have let the requirement gate pass without any create test (P2 review finding 2).
 """
 
 from collections.abc import Callable
@@ -26,6 +26,7 @@ def broken_fields(build: Callable[[], object]) -> set[str]:
     return set()
 
 
+@pytest.mark.req(id="FR-1")
 @pytest.mark.parametrize(
     ("discount", "reason", "broken"),
     [
@@ -74,6 +75,7 @@ def test_comment_rules(outcome: Outcome, comment: str | None, broken: set[str]) 
     assert broken_fields(lambda: Verdict(outcome, comment)) == broken
 
 
+@pytest.mark.req(id="FR-1")
 def test_text_is_kept_exactly_as_sent() -> None:
     reason, comment = "  Retention offer \n", "\tUp to 20 bps acceptable "
     assert Terms(25, reason).reason == reason

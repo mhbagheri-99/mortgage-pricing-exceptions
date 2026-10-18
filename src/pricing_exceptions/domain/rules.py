@@ -5,6 +5,7 @@ The limits are our assumptions (design doc 3.4): the brief sets none, so each is
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from uuid import UUID
 
 from pricing_exceptions.domain.errors import (
     Forbidden,
@@ -20,6 +21,7 @@ from pricing_exceptions.domain.model import (
     Outcome,
     PricingExceptionRequest,
     RequestEvent,
+    RequestRecord,
     Role,
     Status,
 )
@@ -114,3 +116,25 @@ def decide(
         comment=verdict.comment,
     )
     return decided, event
+
+
+def submit(
+    actor: Actor, application_id: str, terms: Terms, request_id: UUID, now: datetime
+) -> tuple[PricingExceptionRequest, RequestEvent]:
+    """Create a request at revision 1, and return it with its SUBMITTED event."""
+    raise NotImplementedError
+
+
+def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
+    """True when this create repeats the one that made `existing`."""
+    raise NotImplementedError
+
+
+def require_staff(actor: Actor) -> None:
+    """Reading requests is for staff."""
+    raise NotImplementedError
+
+
+def latest_decision(history: tuple[RequestEvent, ...]) -> RequestEvent | None:
+    """The newest decision in a request's history."""
+    raise NotImplementedError
