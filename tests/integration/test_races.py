@@ -326,22 +326,24 @@ def test_a_wait_past_lock_timeout_is_503(
 def test_a_wait_for_a_pooled_connection_past_pool_timeout_is_503(
     client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Design doc 7.3: with every connection the pool can give in use, a call waits 3 s (pool_timeout) for
-    one, gives up with the pool's TimeoutError and answers 503 with Retry-After, well inside the 8 s budget.
-    The connections are held in an ExitStack, so a failing test still hands them all back to the next test."""
+    """Design doc 7.3: with every connection the pool can give in use, a write waits 3 s (pool_timeout) for
+    one, gives up with the pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s
+    budget, with nothing written. The connections are held in an ExitStack, so a failing test still hands them
+    all back to the next test."""
     with ExitStack() as held:
         for _ in range(POOL_CONNECTIONS):
             held.enter_context(engine.connect())
         caplog.clear()
         caplog.set_level(logging.INFO, logger="pricing_exceptions")
         started = time.monotonic()
-        response = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers=as_user("rv.dana"))
+        response = client.post(decisions(1002), json=decide_body(1), headers=as_user("rv.dana"))
         elapsed = time.monotonic() - started
     assert response.status_code == 503
     assert response.headers["Retry-After"] == "1"
     assert response.json()["type"] == PROBLEMS + "temporarily-unavailable"
-    assert warning_lines(caplog) == ["database unavailable: action=get TimeoutError sqlstate=-"]
+    assert warning_lines(caplog) == ["database unavailable: action=decide TimeoutError sqlstate=-"]
     assert elapsed < BUDGET_SECONDS, f"took {elapsed:.1f} s"
+    assert stored(engine) == SEEDED
 
 
 class StuckClock:
