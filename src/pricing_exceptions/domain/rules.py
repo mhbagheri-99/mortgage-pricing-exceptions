@@ -88,6 +88,19 @@ _STATUS_AFTER = {Outcome.APPROVED: Status.APPROVED, Outcome.DECLINED: Status.DEC
 _EVENT_FOR = {Outcome.APPROVED: EventType.APPROVED, Outcome.DECLINED: EventType.DECLINED}
 
 
+def check_role_to_decide(actor: Actor) -> None:
+    """403 unless the actor is a reviewer. It depends only on who asks, so the service runs it before it
+    locks the request; decide() runs it first too, so the rule is complete on its own (P4 decision 1)."""
+    if Role.REVIEWER not in actor.roles:
+        raise Forbidden("Only a reviewer can decide a request.")
+
+
+def check_role_to_revise(actor: Actor) -> None:
+    """403 unless the actor is a relationship manager; run before the lock, like the reviewer role."""
+    if Role.RELATIONSHIP_MANAGER not in actor.roles:
+        raise Forbidden("Only a relationship manager can revise a request.")
+
+
 def decide(
     request: PricingExceptionRequest, actor: Actor, revision: int, verdict: Verdict, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
@@ -97,8 +110,7 @@ def decide(
     then the revision (409 stale-revision). The first that fails wins, so the same input always gets the same
     answer, even during a race. The 403 checks read only what never changes on a request.
     """
-    if Role.REVIEWER not in actor.roles:
-        raise Forbidden("Only a reviewer can decide a request.")
+    check_role_to_decide(actor)
     if actor.id == request.requested_by:  # four-eyes: holding the reviewer role is not enough
         raise FourEyesViolation("You cannot decide a request you made.")
     if request.status is not Status.PENDING_REVIEW:  # approved is final; a declined one is resubmitted first
@@ -121,6 +133,48 @@ def decide(
         comment=verdict.comment,
     )
     return decided, event
+
+
+# What a revision writes, by the status it starts from. Approved is not here: it is final (design doc D1).
+_REVISION_EVENT = {Status.PENDING_REVIEW: EventType.AMENDED, Status.DECLINED: EventType.RESUBMITTED}
+
+
+def revise(
+    request: PricingExceptionRequest, actor: Actor, revision: int, terms: Terms, now: datetime
+) -> tuple[PricingExceptionRequest, RequestEvent]:
+    """Change the terms as the next revision, and return the revised request with the one event to append.
+
+    The guards run in the same fixed order as decide() (design doc 5.5): who may act (403), then the status
+    (409 invalid-state), then the revision (409 stale-revision). Pending writes AMENDED. Declined writes
+    RESUBMITTED and goes back to pending, which clears the row's decision; the decline stays in history (D2,
+    4.2). Both terms are replaced every time, and terms identical to the current ones are allowed (D2).
+    """
+    check_role_to_revise(actor)
+    if actor.id != request.requested_by:  # one accountable maker: four-eyes compares against this person
+        raise Forbidden("Only the relationship manager who made the request can revise it.")
+    event_type = _REVISION_EVENT.get(request.status)
+    if event_type is None:  # approved, or any status that does not take a revision
+        raise InvalidState(request.status, "revised")
+    if revision != request.revision:  # the change applies to the revision the requester saw
+        raise StaleRevision(sent=revision, current=request.revision)
+    revised = replace(
+        request,
+        status=Status.PENDING_REVIEW,
+        revision=request.revision + 1,
+        discount_bps=terms.discount_bps,
+        reason=terms.reason,
+        decision=None,  # a resubmission clears the decline from the row
+    )
+    event = RequestEvent(
+        request_id=request.id,
+        event_type=event_type,
+        revision=revised.revision,
+        actor_id=actor.id,
+        occurred_at=now,
+        discount_bps=terms.discount_bps,
+        reason=terms.reason,
+    )
+    return revised, event
 
 
 def submit(

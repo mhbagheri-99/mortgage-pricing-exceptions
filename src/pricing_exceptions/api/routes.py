@@ -16,13 +16,15 @@ from pricing_exceptions.api.schemas import (
     APPLICATION_ID_PATTERN,
     ApprovedDiscount,
     CreateRequest,
+    DecideRequest,
     NoDiscount,
     PageOut,
     RequestOut,
     RequestSummary,
+    ReviseRequest,
 )
 from pricing_exceptions.domain.model import Actor, Clock, Status
-from pricing_exceptions.domain.rules import Terms
+from pricing_exceptions.domain.rules import Terms, Verdict
 from pricing_exceptions.service import Engine, commands, queries
 
 PREFIX = "/api/v1"
@@ -62,6 +64,21 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
     def get(request_id: UUID, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
         """The request as it is now, its latest decision, and its whole history."""
         return RequestOut.of_record(queries.get_request(engine, actor, request_id))
+
+    @router.post(REQUESTS + "/{request_id}/revisions", name="revise", tags=["requests"])
+    def revise(request_id: UUID, body: ReviseRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
+        """Change the discount and the reason, as the next revision. Only the requester, while the request
+        awaits review, or after a decline as a resubmission; approved is final. Send the revision you saw:
+        if the request changed since, the answer is 409 stale-revision with the request as it is now."""
+        terms = Terms(body.discount_bps, body.reason)
+        return RequestOut.of_record(commands.revise(engine, clock, actor, request_id, body.revision, terms))
+
+    @router.post(REQUESTS + "/{request_id}/decisions", name="decide", tags=["requests"])
+    def decide(request_id: UUID, body: DecideRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
+        """Approve or decline the revision you reviewed. A reviewer who did not make the request; a decline
+        needs a comment. The decision records who and when, and binds to that revision only."""
+        verdict = Verdict(body.outcome, body.comment)
+        return RequestOut.of_record(commands.decide(engine, clock, actor, request_id, body.revision, verdict))
 
     @router.get(
         "/mortgage-applications/{application_id}/approved-discount",

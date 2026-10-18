@@ -54,6 +54,27 @@ READ_REQUEST = text("""
      ORDER BY e.id
 """)
 
+# The row lock every change takes first (design doc D4). FOR NO KEY UPDATE makes a second writer wait, but not
+# the foreign-key checks of inserts that point at this row. By primary key only: an extra AND status = ...
+# would make PostgreSQL skip a row that changed while this waited, and the loser would wrongly get 404. At
+# READ COMMITTED, a writer that waited gets the newest committed row.
+LOCK_REQUEST = text("""
+    SELECT id, application_id, requested_by, status, revision_no, discount_bps, reason,
+           decided_by, decided_at, decision_comment, created_at
+      FROM pricing_exception_requests
+     WHERE id = :id
+       FOR NO KEY UPDATE
+""")
+
+# Every column a revision or a decision may change. The id, the application, the requester and created_at
+# are written once, at create.
+UPDATE_REQUEST = text("""
+    UPDATE pricing_exception_requests
+       SET status = :status, revision_no = :revision_no, discount_bps = :discount_bps, reason = :reason,
+           decided_by = :decided_by, decided_at = :decided_at, decision_comment = :decision_comment
+     WHERE id = :id
+""")
+
 FIND_FOR_APPLICATION = text(
     "SELECT id FROM pricing_exception_requests WHERE application_id = :application_id"
 )
@@ -132,6 +153,32 @@ def read_request(conn: Connection, request_id: UUID) -> RequestRecord | None:
         return None
     history = tuple(_event(request_id, row) for row in rows if row["event_type"] is not None)
     return RequestRecord(_request(rows[0]), history)
+
+
+def lock_request(conn: Connection, request_id: UUID) -> PricingExceptionRequest | None:
+    """The request, locked until this transaction ends, or None when there is no such request."""
+    row = conn.execute(LOCK_REQUEST, {"id": request_id}).mappings().first()
+    return _request(row) if row else None
+
+
+def update_request(conn: Connection, request: PricingExceptionRequest) -> None:
+    """Write a changed request back. The caller holds its lock, so exactly one row must change (D4)."""
+    decision = request.decision
+    changed = conn.execute(
+        UPDATE_REQUEST,
+        {
+            "id": request.id,
+            "status": request.status,
+            "revision_no": request.revision,
+            "discount_bps": request.discount_bps,
+            "reason": request.reason,
+            "decided_by": decision.decided_by if decision else None,
+            "decided_at": decision.decided_at if decision else None,
+            "decision_comment": decision.comment if decision else None,
+        },
+    ).rowcount
+    if changed != 1:  # not an assert: Python drops asserts under -O
+        raise RuntimeError(f"updating request {request.id} changed {changed} rows, not 1")
 
 
 def find_id_for_application(conn: Connection, application_id: str) -> UUID | None:
