@@ -36,6 +36,9 @@ const FIELDS = {
 };
 
 const state = { me: readIdentity(), status: "PENDING_REVIEW", limit: 10, nextCursor: null, shownId: null };
+// Every list load and every request open takes a number when it starts. An answer that arrives after a newer
+// one started (another tab, user or request chosen meanwhile) no longer matches and is dropped, never drawn.
+const latest = { list: 0, open: 0 };
 const $ = (id) => document.getElementById(id);
 
 function readIdentity() {
@@ -185,6 +188,7 @@ async function actAs(id) {
     return;
   }
   await loadList();
+  if (state.me !== id) return; // someone else was chosen while the list loaded; that choice draws the page
   if (state.shownId) await openRequest(state.shownId);
   else showNothingOpen();
 }
@@ -192,6 +196,7 @@ async function actAs(id) {
 // ---- The queue -----------------------------------------------------------------------------------------
 
 function clearList(message) {
+  latest.list += 1; // a list still on its way belongs to a user or state that is gone
   $("rows").replaceChildren();
   $("list-problem").replaceChildren();
   state.nextCursor = null;
@@ -212,9 +217,11 @@ function showCreate(permission) {
 
 // Oldest first, one page at a time; "Load more" follows next_cursor until it is null (design doc 5.6).
 async function loadList(more = false) {
+  const mine = (latest.list += 1);
   const params = new URLSearchParams({ status: state.status, limit: String(state.limit) });
   if (more && state.nextCursor) params.set("cursor", state.nextCursor);
   const result = await call("GET", `${REQUESTS}?${params}`);
+  if (mine !== latest.list) return; // a newer load, or a clear, started meanwhile
   $("list-problem").replaceChildren();
   if (!result.ok) {
     if (!more) $("rows").replaceChildren();
@@ -276,7 +283,8 @@ async function create(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const result = await call("POST", REQUESTS, {
-    application_id: form.elements.application_id.value,
+    // Spaces around a pasted id are not part of the id. The reason below stays exactly as typed.
+    application_id: form.elements.application_id.value.trim(),
     discount_bps: whole(form.elements.discount_bps.value),
     reason: form.elements.reason.value,
   });
@@ -306,6 +314,7 @@ async function create(event) {
 // ---- The case and its actions --------------------------------------------------------------------------
 
 function showCase(...parts) {
+  latest.open += 1; // any redraw of the case also settles which opens may still draw
   $("case").replaceChildren(...parts.filter((part) => part !== null)); // a null would show as "null"
 }
 
@@ -347,7 +356,9 @@ function showNothingOpen() {
 
 async function openRequest(id, keepTyped = false) {
   const typed = keepTyped ? readTyped() : [];
+  const mine = (latest.open += 1);
   const result = await call("GET", `${REQUESTS}/${encodeURIComponent(id)}`);
+  if (mine !== latest.open) return; // another request was opened, or the case was redrawn, meanwhile
   if (!result.ok) {
     state.shownId = id; // kept, so switching to a user who may read it opens it again
     const slot = el("div");
