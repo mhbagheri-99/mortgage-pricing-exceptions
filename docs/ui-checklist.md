@@ -52,8 +52,11 @@ docker stop pricing-identity-off
 
 Phones are not a target: below about 820 pixels wide the panes stack one after another and stay usable.
 
-Last run: 18 October 2026, on fresh seed data with this page: steps 1 to 4, 8 to 16, 19 and 20, the
-mortgage-process panel (NONE before an approval, the approved discount right after it, on MA-1006 and MA-1007),
-and step 18's `permissions` in the API description. Steps 5 to 7, 17 and step 18's Swagger check ran earlier the
-same day, on this layout before the server reported permissions; the code they exercise (Load more, the create
-dialog, the headers on `/docs`) has not changed since.
+Last run: 18 October 2026, on fresh seed data (`docker compose down -v`, then `docker compose up --build -d`) with
+the version at commit `771b692`. All 20 steps ran in that order, in two browser tabs, and every step matched its
+"Expect" column. The steps ran in a 1366 by 768 window; step 19 was also measured at 1440 by 900 (three panes side
+by side, the actions pane fixed while the history scrolled, no sideways scroll at either size). Step 18 included a
+call made through Swagger's "Try it out" as svc.mortgage. The service logged exactly the five refused writes of
+steps 7, 10, 12, 16 and 17, and no error. The two page fixes made since the previous run (a space around a pasted
+application id is dropped, and a late answer never replaces a newer choice) were checked separately in the
+browser, because no step here exercises them.
