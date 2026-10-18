@@ -17,8 +17,9 @@ this repository's history; a test fails the build if one does not (`tests/agenti
   as options with a recommendation; **the human decided every one, and approved every commit and push.** The agent
   wrote all code, tests and documents.
 - **Who ran what.** One Claude Code session per phase did the work. The read-only reviewer agent and the parallel
-  side sessions (four in the hardening phase, one for these documents) ran on Claude Sonnet, each side session
-  touching only its own files and committing nothing; the phase session reviewed their diffs and made every commit.
+  side sessions (four in the hardening phase, one for these documents, one for the release check) ran on Claude
+  Sonnet, each side session touching only its own files and committing nothing; the phase session reviewed their
+  diffs and made every commit.
   The independent audit ran on Claude Fable, in a fresh clone, with only the client's needs and the repository.
 - **Guardrails first.** The core controls (`AGENTS.md`, the approval rules, the two hooks, the gates, red first and
   the reviewer agent) went in during the first phase, before any feature code, so everything after was built under
@@ -44,6 +45,7 @@ this repository's history; a test fails the build if one does not (`tests/agenti
 | Read-only reviewer agent (`.claude/agents/rules-reviewer.md`, `/review-rules`) after each phase | A solo developer has no second reviewer | It may only read; each finding is fixed or rejected with a reason, checked against the files first | 40 findings over eight passes, below | The same model family shares blind spots; its own invariant on the order of checks was stale until F7 |
 | Automated security reviews of the first phase | Ways for an agent to dodge the gates | Reviews of the guardrail commits and of the first push | The first two found sidesteps, fixed in `f8b04c1` and `b9a0678`; a third found more ways for code inside the test process to fool the gates, which is where the scans stop; the review of the push found the demo port open on every network interface, fixed in `e3b78c9` | The point where we stopped adding scans is explained below |
 | Independent audit against the client's needs | The agents and the reviewer share the design's assumptions | Another model, in a fresh clone, with no design document | 43 findings, 8 medium, none high; every one checked against the files before it was accepted (appendix) | One audit, by a model of the same vendor |
+| Release check | The README reads well to the people who wrote it, who know what it leaves out; a secret or private file reaches the public history | A side session with nothing but a fresh clone followed the README word for word and timed it. gitleaks scanned a mirror of every branch and pull request, and a sweep read every path, file, commit message and pull-request text for private files and words; each scanner was first shown catching a planted case | Every step passed in under 4 minutes on a warm machine; 6 unclear places in the README, none blocking, all fixed; both scans clean | One run, on one machine, with the images already downloaded |
 | The human | Everything above can be approved without reading | Every decision, commit and push needed the human's go-ahead | n/a | Fatigue at the end of a long day |
 
 The **guardrail log** (`.claude/logs/guardrails.jsonl`, local, ignored by git) holds one line per refusal,
@@ -196,8 +198,8 @@ Commit messages and code comments name phases, decisions and audit findings.
 | P5 | The race, time-limit and backstop tests | #5, `e8fa2ab` |
 | P7 | The page, and `permissions` in every response | #6, `108d583` |
 | P8a | The audit's fixes, mutation testing, the final review | #7, `34ca7b3` |
-| P6 | These documents, the demo scenario and the cited-commit check | the pull request that adds this page |
-| P8b | The release check | to come |
+| P6 | These documents, the demo scenario and the cited-commit check | #8, `7164e98` |
+| P8b | The release check: a timed run from a fresh clone, a secret and privacy scan of the whole history, two demo rehearsals | the pull request that adds this line |
 
 P6 was paused after its decisions, so the documents could describe the finished system.
 

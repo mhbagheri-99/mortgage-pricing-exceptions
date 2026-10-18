@@ -89,7 +89,9 @@ GET {{api}}/mortgage-applications/MA-1006/approved-discount
 X-User-Id: svc.mortgage
 
 ### Step 12 · rv.dana reads the history; then run "docker compose logs api"
-# Expect: 200, history SUBMITTED r1, AMENDED r2, APPROVED r2. The log shows four WARNING lines, one per refused
-# write (steps 4, 5, 8 and 10): rejected attempts go to the log, not the history.
+# Expect: 200, history SUBMITTED r1, AMENDED r2, APPROVED r2. After the start-up WARNING that the demo identity is
+# on, the log shows four "refused write" WARNING lines, one per refused write (steps 4, 5, 8 and 10): rejected
+# attempts go to the log, not the history. To see only those, in Git Bash:
+#   docker compose logs api | grep "refused write"
 GET {{api}}/pricing-exception-requests/{{create.response.body.$.id}}
 X-User-Id: rv.dana
