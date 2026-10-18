@@ -1,10 +1,11 @@
 """What the domain is made of: the request, the decision on it, its history events and who acts. Data only.
 
-Enumerations are `StrEnum`s that mirror the text CHECK lists in the migration (design doc 4.2).
+Enumerations are `StrEnum`s that mirror the text CHECK lists in the migration (design doc 4.2). The reason and
+comment are left out of every repr, so a stray log of an object never leaks them (design doc 7.9).
 """
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
 from uuid import UUID
@@ -57,7 +58,7 @@ class Decision:
 
     decided_by: str
     decided_at: datetime
-    comment: str | None
+    comment: str | None = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +75,7 @@ class PricingExceptionRequest:
     status: Status
     revision: int
     discount_bps: int
-    reason: str
+    reason: str = field(repr=False)
     created_at: datetime
     decision: Decision | None = None
 
@@ -89,5 +90,5 @@ class RequestEvent:
     actor_id: str
     occurred_at: datetime
     discount_bps: int
-    reason: str
-    comment: str | None = None
+    reason: str = field(repr=False)
+    comment: str | None = field(default=None, repr=False)

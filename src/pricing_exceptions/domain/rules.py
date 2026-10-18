@@ -3,7 +3,7 @@
 The limits are our assumptions (design doc 3.4): the brief sets none, so each is one constant here.
 """
 
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 
 from pricing_exceptions.domain.errors import (
@@ -33,6 +33,8 @@ def _text_problem(text: str) -> str | None:
     """What is wrong with a reason or comment, or None. The text itself is never trimmed or rewritten."""
     if not text.strip():
         return "must not be blank"
+    if "\x00" in text:  # PostgreSQL text cannot hold NUL; without this check the insert fails as a 500
+        return "must not contain the NUL character"
     if len(text) > MAX_TEXT_CHARS:
         return f"must be at most {MAX_TEXT_CHARS} characters"
     return None
@@ -43,7 +45,7 @@ class Terms:
     """What a requester asks for: a discount in basis points and a reason. Checks itself when built."""
 
     discount_bps: int
-    reason: str
+    reason: str = field(repr=False)
 
     def __post_init__(self) -> None:
         problems: dict[str, str] = {}
@@ -65,7 +67,7 @@ class Verdict:
     """What a reviewer decides: the outcome, and a comment every decline needs. Checks itself when built."""
 
     outcome: Outcome
-    comment: str | None = None
+    comment: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         if self.comment is None:

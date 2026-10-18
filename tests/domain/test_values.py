@@ -2,8 +2,8 @@
 lock is taken. Text is checked but never rewritten: it is kept exactly as sent, so a retried create compares
 equal (5.7). The limits are our assumptions; the brief sets none.
 
-The terms tests carry no FR-1 marker yet: FR-1 is first proven by P3's create API test, and a marker here would
-let the requirement gate pass without it (P2 review finding 2). P3 marks them once that test exists.
+The terms tests carry no FR-1 marker yet: FR-1 is first proven by P3's create API test, and a marker here
+would let the requirement gate pass without it (P2 review finding 2). P3 marks them once that test exists.
 """
 
 from collections.abc import Callable
