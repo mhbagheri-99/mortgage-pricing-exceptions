@@ -9,7 +9,7 @@ is finished. "Where it comes from" is the client need behind each row, in our ow
 
 | Id | Requirement | Where it comes from | First tested in |
 | --- | --- | --- | --- |
-| FR-1 | **Create.** A relationship manager creates a request for an existing mortgage application, giving the application id, a discount in basis points and a reason. | Managers ask for a discount on the standard rate of one application. | P3 |
+| FR-1 | **Create.** A relationship manager opens a request on a mortgage application that exists, giving its id, a discount in basis points and a reason. | Managers ask for a discount on the standard rate of one application. | P3 |
 | FR-2 | **Change.** The manager who made the request changes the discount or the reason after submitting it, until it is approved. Every change is a new, numbered revision. | One stakeholder wants the requested discount to stay changeable after submission. | P4 |
 | FR-3 | **Decide.** A reviewer who did not make the request approves or declines one specific revision. The decision records who decided and when. | An authorised reviewer decides, and the outcome names the person and the time. Another stakeholder wants every approval to bind to exactly what was reviewed. | P2 |
 | FR-4 | **Consume.** The mortgage application process reads the approved discount for an application, or "none" before approval. | The application process needs the approved discount before it can use it. | P3 |

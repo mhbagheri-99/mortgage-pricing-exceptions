@@ -1,0 +1,95 @@
+# The 12-step demo: both stakeholders, a retry, four-eyes and the consumer, in plain HTTP.
+#
+# Open this file in VS Code with the REST Client extension and click "Send Request" above each call, in order.
+# Step 2 is named "create", so the later steps take the new request's id from its answer. In another tool, copy
+# the id from step 2's answer into each URL by hand.
+#
+# Start from fresh seed data, because MA-1006 takes one request for good:
+#   docker compose down -v
+#   docker compose up --build
+#
+# Step 1 is the README and Swagger (http://localhost:8000/docs). Each step's "Expect" line is checked by
+# tests/integration/test_demo_scenario.py, which replays the same calls with the same users.
+
+@api = http://localhost:8000/api/v1
+
+### Step 2 · lead.fatima creates a request for MA-1006 at 25 bps (upstream systems retry after timeouts)
+# Expect: 201, revision 1
+# @name create
+POST {{api}}/pricing-exception-requests
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"application_id": "MA-1006", "discount_bps": 25, "reason": "Retention: competitor offer 25 bps below standard"}
+
+### Step 3 · the same call again: a replay, not a second request
+# Expect: 201, the same id, Idempotent-Replayed: true
+POST {{api}}/pricing-exception-requests
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"application_id": "MA-1006", "discount_bps": 25, "reason": "Retention: competitor offer 25 bps below standard"}
+
+### Step 4 · MA-1006 again at 30 bps: one request per application; change it through revisions
+# Expect: 409, request-exists, with the existing request in current
+POST {{api}}/pricing-exception-requests
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"application_id": "MA-1006", "discount_bps": 30, "reason": "Retention: competitor offer 25 bps below standard"}
+
+### Step 5 · lead.fatima approves her own request: holding the reviewer role is not enough
+# Expect: 403, four-eyes-violation
+POST {{api}}/pricing-exception-requests/{{create.response.body.$.id}}/decisions
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"revision": 1, "outcome": "APPROVED"}
+
+### Step 6 · rv.dana reads the request and starts reviewing 25 bps
+# Expect: 200, revision 1, 25 bps
+GET {{api}}/pricing-exception-requests/{{create.response.body.$.id}}
+X-User-Id: rv.dana
+
+### Step 7 · lead.fatima changes the discount to 30 bps, based on revision 1: allowed while pending
+# Expect: 200, revision 2, 30 bps
+POST {{api}}/pricing-exception-requests/{{create.response.body.$.id}}/revisions
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"revision": 1, "discount_bps": 30, "reason": "Competitor improved their offer"}
+
+### Step 8 · rv.dana approves revision 1, the one she read: it cannot attach to 30 bps
+# Expect: 409, stale-revision, sent_revision 1, current at revision 2
+POST {{api}}/pricing-exception-requests/{{create.response.body.$.id}}/decisions
+X-User-Id: rv.dana
+Content-Type: application/json
+
+{"revision": 1, "outcome": "APPROVED", "comment": "Within retention policy"}
+
+### Step 9 · rv.dana approves revision 2: who and when, bound to revision 2
+# Expect: 200, latest_decision APPROVED on revision 2 by rv.dana, with decided_at
+POST {{api}}/pricing-exception-requests/{{create.response.body.$.id}}/decisions
+X-User-Id: rv.dana
+Content-Type: application/json
+
+{"revision": 2, "outcome": "APPROVED", "comment": "Within retention policy"}
+
+### Step 10 · lead.fatima tries another change: approved never changes
+# Expect: 409, invalid-state
+POST {{api}}/pricing-exception-requests/{{create.response.body.$.id}}/revisions
+X-User-Id: lead.fatima
+Content-Type: application/json
+
+{"revision": 2, "discount_bps": 35, "reason": "Competitor improved their offer"}
+
+### Step 11 · the mortgage process reads exactly what was approved
+# Expect: 200, APPROVED, 30 bps, revision 2, approved_by rv.dana
+GET {{api}}/mortgage-applications/MA-1006/approved-discount
+X-User-Id: svc.mortgage
+
+### Step 12 · rv.dana reads the history; then run "docker compose logs api"
+# Expect: 200, history SUBMITTED r1, AMENDED r2, APPROVED r2. The log shows four WARNING lines, one per refused
+# write (steps 4, 5, 8 and 10): rejected attempts go to the log, not the history.
+GET {{api}}/pricing-exception-requests/{{create.response.body.$.id}}
+X-User-Id: rv.dana
