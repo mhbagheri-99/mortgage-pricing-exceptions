@@ -631,6 +631,41 @@ button.decline {
   border-color: var(--rule-strong);
 }
 
+.final {
+  padding: 0.7rem 0.85rem;
+  background: var(--approved-bg);
+  color: var(--approved-ink);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.unavailable h3 {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.refusals {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refusals li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.refusal-action {
+  font-weight: 600;
+}
+
+.refusal-detail {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 .binds {
   margin-top: 0.6rem;
   padding: 0.55rem 0.7rem;

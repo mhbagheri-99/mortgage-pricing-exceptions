@@ -11,7 +11,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
+from pricing_exceptions.domain.errors import DomainError
 from pricing_exceptions.domain.model import (
+    Actor,
     EventType,
     Outcome,
     PricingExceptionRequest,
@@ -21,7 +23,7 @@ from pricing_exceptions.domain.model import (
     Status,
     User,
 )
-from pricing_exceptions.domain.rules import latest_decision
+from pricing_exceptions.domain.rules import Action, latest_decision, permissions
 
 # 1 to 64 letters, digits, dot, underscore or hyphen, checked before any lookup: a NUL (%00) or a newline
 # never reaches PostgreSQL, whose text type cannot hold a NUL. The pattern runs on Rust's regex engine, where
@@ -149,16 +151,38 @@ class RequestCurrent(RequestSummary):
         )
 
 
-class RequestOut(RequestCurrent):
-    """The request with its whole history, oldest event first: the body of GET, create and its replay."""
+class PermissionOut(BaseModel):
+    """Whether the caller may take one action now. If not, the problem type and the detail the action would
+    be refused with, so a client can say why instead of offering a button that can only fail (P7)."""
 
-    history: list[EventOut]
+    allowed: bool
+    problem: str | None
+    detail: str | None
 
     @classmethod
-    def of_record(cls, record: RequestRecord) -> Self:
+    def of(cls, refusal: DomainError | None) -> Self:
+        if refusal is None:
+            return cls(allowed=True, problem=None, detail=None)
+        return cls(allowed=False, problem=refusal.code, detail=str(refusal))
+
+
+class RequestOut(RequestCurrent):
+    """The request with its whole history, oldest event first: the body of GET, create and its replay,
+    revise and decide. `permissions` is what the caller may do to it now; the domain's own checks decide
+    it, and the actions still run them when tried."""
+
+    history: list[EventOut]
+    permissions: dict[Action, PermissionOut]
+
+    @classmethod
+    def for_caller(cls, record: RequestRecord, caller: Actor) -> Self:
         return cls(
             **RequestCurrent.of_record(record).model_dump(),
             history=[EventOut.of(event) for event in record.history],
+            permissions={
+                action: PermissionOut.of(refusal)
+                for action, refusal in permissions(record.request, caller).items()
+            },
         )
 
 

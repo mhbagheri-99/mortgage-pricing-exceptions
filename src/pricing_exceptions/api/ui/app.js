@@ -20,6 +20,8 @@ const EVENTS = {
   APPROVED: "Approved",
   DECLINED: "Declined",
 };
+// The actions the server reports in `permissions` (P7), named as the page offers them.
+const ACTIONS = { decide: "Approve or decline", revise: "Change the terms" };
 const FIELDS = {
   application_id: "Application id",
   discount_bps: "Discount",
@@ -391,12 +393,40 @@ function renderRequest(record, notice = "") {
       timeline(record.history),
     ),
   );
+  // The server says what this caller may do (`permissions`, P7): only those forms are offered, and every
+  // other action is listed with the server's own reason. The server still checks each rule when it is tried.
+  const allowed = record.permissions || {};
+  const refused = Object.entries(allowed).filter(([, permission]) => !permission.allowed);
   showActions(
     notice ? el("p", { className: "notice", attrs: { role: "status" }, text: notice }) : null,
-    decideForm(record),
-    reviseForm(record),
+    record.status === "APPROVED"
+      ? el("p", { className: "final", text: "Approved is final. The mortgage process can now read this discount." })
+      : null,
+    allowed.decide?.allowed ? decideForm(record) : null,
+    allowed.revise?.allowed ? reviseForm(record) : null,
+    refused.length ? notAvailable(refused) : null,
   );
   markSelected();
+}
+
+function notAvailable(refused) {
+  return el(
+    "section",
+    { className: "action-card unavailable", attrs: { "aria-labelledby": "unavailable-title" } },
+    el("h3", { attrs: { id: "unavailable-title" }, text: "Not available to you" }),
+    el(
+      "ul",
+      { className: "refusals" },
+      ...refused.map(([action, permission]) =>
+        el(
+          "li",
+          {},
+          el("span", { className: "refusal-action", text: ACTIONS[action] || action }),
+          el("span", { className: "refusal-detail", text: permission.detail || "" }),
+        ),
+      ),
+    ),
+  );
 }
 
 function decisionText(decision) {
@@ -428,20 +458,19 @@ function timeline(events) {
   );
 }
 
-// Both forms show for everyone; the server decides who may use them (P7 decision 4).
+// Offered only when the server's `permissions` allow it for this caller (P7).
 function decideForm(record) {
   const form = el(
     "form",
     { className: "action-card decide", attrs: { id: "decide-form", novalidate: "" } },
-    el("h3", { text: `Decide revision ${record.revision}` }),
+    el("h3", { text: `Approve or decline revision ${record.revision}` }),
     el("p", {
       className: "binds",
       text:
         `Your decision applies to revision ${record.revision} only: ${discount(record.discount_bps)} and the ` +
         "reason shown. If the request changes first, you are asked to reload.",
     }),
-    el("p", { className: "who", text: "For a reviewer who did not make the request. A decline needs a comment." }),
-    field("Comment", el("textarea", { attrs: { name: "comment", rows: "3" } })),
+    field("Comment (needed to decline)", el("textarea", { attrs: { name: "comment", rows: "3" } })),
   );
   const slot = el("div"); // a refusal shows here, under the buttons
   const decide = async (outcome) => {
@@ -467,13 +496,16 @@ function decideForm(record) {
 }
 
 function reviseForm(record) {
+  const declined = record.status === "DECLINED";
   const form = el(
     "form",
     { className: "action-card", attrs: { id: "revise-form", novalidate: "" } },
-    el("h3", { text: "Revise" }),
+    el("h3", { text: declined ? "Resubmit with new terms" : "Change the terms" }),
     el("p", {
       className: "who",
-      text: `For the requester. New terms become the next revision, based on revision ${record.revision}, and a reviewer decides again.`,
+      text: declined
+        ? `New terms become revision ${record.revision + 1} and go back to a reviewer.`
+        : `Your change becomes revision ${record.revision + 1}, and a reviewer decides again.`,
     }),
     field(
       "Discount in basis points",
@@ -482,7 +514,11 @@ function reviseForm(record) {
       }),
     ),
     field("Reason", el("textarea", { attrs: { name: "reason", rows: "3" }, text: record.reason })),
-    el("div", { className: "buttons" }, el("button", { attrs: { type: "submit" }, text: "Send revision" })),
+    el(
+      "div",
+      { className: "buttons" },
+      el("button", { attrs: { type: "submit" }, text: declined ? "Resubmit" : "Send changes" }),
+    ),
   );
   const slot = el("div"); // a refusal shows here, under the button that caused it
   form.append(slot);
