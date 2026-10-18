@@ -14,7 +14,7 @@ from sqlalchemy import Engine
 from pricing_exceptions.api.app import create_app
 from pricing_exceptions.db.engine import make_engine
 
-SEEDED = (4, 7)  # requests and history events after the seed
+SEEDED = (14, 19)  # requests and history events after the seed
 MA_1002_REASON = "Retention: the borrower holds a competing offer"
 UNREACHABLE = "postgresql+psycopg://nobody:nothing@192.0.2.1:5432/nothing"  # reserved; never answers
 PRIVATE_TEXT = "Borrower note 7f3a: never log this"
@@ -60,7 +60,7 @@ def test_create_returns_the_new_request_with_its_history(client: TestClient, eng
     }
     # The same caller reads it back; permissions belong to the caller, so another user would see others.
     assert client.get(response.headers["Location"], headers=as_user("rm.anna")).json() == body
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
 
 @pytest.mark.req(id="FR-6")
@@ -78,7 +78,7 @@ def test_identical_creates_one_after_another_give_one_request(client: TestClient
     responses = [client.post(REQUESTS, json=create_body(), headers=as_user("rm.anna")) for _ in range(3)]
     assert [response.status_code for response in responses] == [201, 201, 201]
     assert len({response.json()["id"] for response in responses}) == 1
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
 
 @pytest.mark.req(id="FR-6")

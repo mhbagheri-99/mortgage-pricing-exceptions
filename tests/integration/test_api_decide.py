@@ -29,7 +29,7 @@ from sqlalchemy.exc import OperationalError
 
 from pricing_exceptions.api.app import create_app
 
-SEEDED = (4, 7)  # requests and history events after the seed
+SEEDED = (14, 19)  # requests and history events after the seed
 CONFIRMED = "Savings transfer confirmed; matching the competing offer"  # MA-1003's reason at r2
 
 
@@ -107,7 +107,7 @@ def test_approval_binds_to_reviewed_revision(client: TestClient, engine: Engine)
         "comment": "Within retention policy",
     }
     assert newest["occurred_at"] > body["history"][-2]["occurred_at"]
-    assert stored(engine) == (4, 8)
+    assert stored(engine) == (14, 20)
 
 
 @pytest.mark.req(id="N5")
@@ -124,7 +124,7 @@ def test_requester_cannot_decide_own_request(client: TestClient, engine: Engine)
     no_role = client.post(decisions(1002), json=decide_body(1), headers=as_user("rm.anna"))
     assert no_role.status_code == 403
     assert no_role.json()["type"] == PROBLEMS + "forbidden"
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
     other = client.post(decisions(request_id), json=decide_body(1), headers=as_user("rv.dana"))
     assert other.status_code == 200
@@ -338,7 +338,7 @@ def test_a_change_and_its_event_commit_together_or_not_at_all(
             {"id": seeded_id(1002)},
         ).one()
     assert tuple(row) == (1, 20)
-    assert stored(engine) == (4, 8)
+    assert stored(engine) == (14, 20)
 
 
 def test_the_clock_is_read_once_under_the_row_lock(engine: Engine) -> None:

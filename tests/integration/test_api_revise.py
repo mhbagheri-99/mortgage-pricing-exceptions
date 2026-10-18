@@ -20,7 +20,7 @@ from calls import (
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
-SEEDED = (4, 7)  # requests and history events after the seed
+SEEDED = (14, 19)  # requests and history events after the seed
 RESUBMIT_REASON = "Reduced to the 30 bps the reviewer would accept"
 
 
@@ -41,7 +41,7 @@ def test_amend_makes_the_next_revision(client: TestClient, engine: Engine) -> No
     assert kinds(body) == [("SUBMITTED", 1, 15), ("AMENDED", 2, 20), ("AMENDED", 3, 25)]
     newest = body["history"][-1]
     assert (newest["actor"], newest["reason"], newest["comment"]) == ("rm.bram", NEW_REASON, None)
-    assert stored(engine) == (4, 8)
+    assert stored(engine) == (14, 20)
 
 
 @pytest.mark.req(id="FR-2")
@@ -74,7 +74,7 @@ def test_resubmit_clears_decision_keeps_history(client: TestClient, engine: Engi
     assert tuple(row) == ("PENDING_REVIEW", 2, None, None, None)
     queue = client.get(REQUESTS, headers=as_user("rv.dana")).json()
     assert seeded_id(1005) in [item["id"] for item in queue["items"]]
-    assert stored(engine) == (4, 8)
+    assert stored(engine) == (14, 20)
 
 
 @pytest.mark.req(id="N5")
