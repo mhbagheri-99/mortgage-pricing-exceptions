@@ -235,6 +235,7 @@ def test_a_refused_revise_or_decide_logs_one_warning_line_without_the_body(
     response = client.post(path, json=body, headers=as_user(user))
     assert response.status_code == status
     assert warnings_from_the_api(caplog) == [f"refused write: {line}"]
+    assert [record for record in caplog.records if record.getMessage().startswith("state change")] == []
     assert PRIVATE_TEXT not in caplog.text
 
 

@@ -5,11 +5,15 @@ The seeded requests (section 10): MA-1002 is rm.anna's, pending at r1; MA-1003 i
 MA-1004 is rm.bram's, approved at r1 by rv.dana; MA-1005 is rm.anna's, declined at r1 by rv.erik.
 """
 
+import logging
+from datetime import UTC, datetime
+
 import pytest
 from calls import (
     NEW_REASON,
     PROBLEMS,
     REQUESTS,
+    TickingClock,
     as_user,
     create_body,
     decide_body,
@@ -21,9 +25,38 @@ from calls import (
 )
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
+from sqlalchemy.exc import OperationalError
+
+from pricing_exceptions.api.app import create_app
 
 SEEDED = (4, 7)  # requests and history events after the seed
 CONFIRMED = "Savings transfer confirmed; matching the competing offer"  # MA-1003's reason at r2
+
+
+class LockProbeClock:
+    """A test clock that, each time it is read, asks a second connection whether the request's row is locked.
+    FOR NO KEY UPDATE NOWAIT fails at once, with SQLSTATE 55P03, while another transaction holds the lock."""
+
+    def __init__(self, engine: Engine, request_id: str) -> None:
+        self.engine = engine
+        self.request_id = request_id
+        self.locked: list[bool] = []
+        self.ticks = TickingClock(datetime(2026, 10, 18, 9, 0, tzinfo=UTC))
+
+    def __call__(self) -> datetime:
+        with self.engine.connect() as conn:  # leaving the block rolls back, so the probe never keeps a lock
+            try:
+                conn.execute(
+                    text("SELECT 1 FROM pricing_exception_requests WHERE id = :id FOR NO KEY UPDATE NOWAIT"),
+                    {"id": self.request_id},
+                )
+            except OperationalError as error:
+                sqlstate = getattr(error.orig, "sqlstate", None)
+            else:
+                sqlstate = None  # the probe got the lock, so nobody else held it
+        assert sqlstate in (None, "55P03"), f"the probe failed for another reason: {sqlstate}"
+        self.locked.append(sqlstate == "55P03")
+        return self.ticks()
 
 
 def kinds(body: dict) -> list[tuple[str, int]]:
@@ -232,6 +265,8 @@ def test_write_response_matches_get(client: TestClient) -> None:
     )
     assert decided.status_code == 200
     assert decided.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rm.bram")).json()
+    assert kinds(decided.json()) == [("SUBMITTED", 1), ("AMENDED", 2), ("AMENDED", 3), ("DECLINED", 3)]
+    assert decided.json()["latest_decision"]["comment"] == "Up to 20 bps"
 
 
 @pytest.mark.req(id="N4")
@@ -272,7 +307,9 @@ def test_every_change_appends_exactly_one_event_in_order(client: TestClient, eng
 
 
 @pytest.mark.req(id="N4")
-def test_a_change_and_its_event_commit_together_or_not_at_all(client: TestClient, engine: Engine) -> None:
+def test_a_change_and_its_event_commit_together_or_not_at_all(
+    client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
     """The row update and its event are one transaction. A stray AMENDED event already holds revision 2 of
     MA-1002, so the event of rm.anna's change breaks ux_event_one_revision_event: the call fails, and the
     row's own update must roll back with it."""
@@ -285,9 +322,16 @@ def test_a_change_and_its_event_commit_together_or_not_at_all(client: TestClient
             ),
             {"id": seeded_id(1002)},
         )
+    caplog.set_level(logging.INFO, logger="pricing_exceptions")
     response = client.post(revisions(1002), json=revise_body(1, 30), headers=as_user("rm.anna"))
     assert response.status_code == 500
     assert response.json() == {"type": "about:blank", "title": "Internal Server Error", "status": 500}
+    # The event's insert is what failed (23505, a unique violation), and no line claims the change happened.
+    messages = [(record.levelno, record.getMessage()) for record in caplog.records]
+    assert [message for level, message in messages if level >= logging.ERROR] == [
+        "unexpected database error: action=revise IntegrityError sqlstate=23505"
+    ]
+    assert [message for level, message in messages if message.startswith("state change")] == []
     with engine.connect() as conn:
         row = conn.execute(
             text("SELECT revision_no, discount_bps FROM pricing_exception_requests WHERE id = :id"),
@@ -295,6 +339,17 @@ def test_a_change_and_its_event_commit_together_or_not_at_all(client: TestClient
         ).one()
     assert tuple(row) == (1, 20)
     assert stored(engine) == (4, 8)
+
+
+def test_the_clock_is_read_once_under_the_row_lock(engine: Engine) -> None:
+    """P4 decision 3: a change reads the clock once, while it holds the request's row lock, so the times in
+    history follow the order in which writers took the lock (P4 review finding 2)."""
+    clock = LockProbeClock(engine, seeded_id(1003))
+    client = TestClient(create_app(engine, clock, demo_identity=True))
+    revised = client.post(revisions(1003), json=revise_body(2), headers=as_user("rm.bram"))
+    decided = client.post(decisions(1003), json=decide_body(3), headers=as_user("rv.dana"))
+    assert (revised.status_code, decided.status_code) == (200, 200)
+    assert clock.locked == [True, True]
 
 
 @pytest.mark.req(id="FR-2")

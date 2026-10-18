@@ -191,6 +191,7 @@ def test_revised_terms_outside_the_policy_are_422_listing_every_field(
 
 
 @pytest.mark.req(id="FR-2")
+@pytest.mark.req(id="FR-3")
 @pytest.mark.parametrize(
     ("user", "path", "status"),
     [
