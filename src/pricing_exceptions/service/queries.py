@@ -30,10 +30,11 @@ def get_actor(engine: Engine, user_id: str) -> Actor | None:
 
 
 def list_users(engine: Engine) -> list[User]:
-    """Every seeded user, by id. Only the demo's acting-as switcher asks, and only with the demo identity on
-    (design doc 5.1)."""
+    """The staff users, by id: the people the demo's acting-as switcher can act as. Only that switcher asks,
+    and only with the demo identity on (design doc 5.1). svc.mortgage is left out: it is the mortgage
+    process's account, which reads approved discounts through the API, not the page (P7)."""
     with engine.connect() as conn:
-        return reference.list_users(conn)
+        return [user for user in reference.list_users(conn) if rules.is_staff(user.roles)]
 
 
 def get_request(engine: Engine, actor: Actor, request_id: UUID) -> RequestRecord:

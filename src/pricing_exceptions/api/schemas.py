@@ -23,7 +23,7 @@ from pricing_exceptions.domain.model import (
     Status,
     User,
 )
-from pricing_exceptions.domain.rules import Action, latest_decision, permissions
+from pricing_exceptions.domain.rules import Action, collection_permissions, latest_decision, permissions
 
 # 1 to 64 letters, digits, dot, underscore or hyphen, checked before any lookup: a NUL (%00) or a newline
 # never reaches PostgreSQL, whose text type cannot hold a NUL. The pattern runs on Rust's regex engine, where
@@ -165,6 +165,10 @@ class PermissionOut(BaseModel):
             return cls(allowed=True, problem=None, detail=None)
         return cls(allowed=False, problem=refusal.code, detail=str(refusal))
 
+    @classmethod
+    def each(cls, refusals: dict[Action, DomainError | None]) -> dict[Action, Self]:
+        return {action: cls.of(refusal) for action, refusal in refusals.items()}
+
 
 class RequestOut(RequestCurrent):
     """The request with its whole history, oldest event first: the body of GET, create and its replay,
@@ -179,18 +183,25 @@ class RequestOut(RequestCurrent):
         return cls(
             **RequestCurrent.of_record(record).model_dump(),
             history=[EventOut.of(event) for event in record.history],
-            permissions={
-                action: PermissionOut.of(refusal)
-                for action, refusal in permissions(record.request, caller).items()
-            },
+            permissions=PermissionOut.each(permissions(record.request, caller)),
         )
 
 
 class PageOut(BaseModel):
-    """One page of the list. Follow `next_cursor` until it is null to see every request (design doc 5.6)."""
+    """One page of the list. Follow `next_cursor` until it is null to see every request (design doc 5.6).
+    `permissions` is what the caller may do with the collection: create a request (P7)."""
 
     items: list[RequestSummary]
     next_cursor: str | None
+    permissions: dict[Action, PermissionOut]
+
+    @classmethod
+    def for_caller(cls, items: list[PricingExceptionRequest], next_cursor: str | None, caller: Actor) -> Self:
+        return cls(
+            items=[RequestSummary.of(item) for item in items],
+            next_cursor=next_cursor,
+            permissions=PermissionOut.each(collection_permissions(caller)),
+        )
 
 
 class ApprovedDiscount(BaseModel):

@@ -192,6 +192,12 @@ def revise(
     return revised, event
 
 
+def check_submit(actor: Actor) -> None:
+    """Whether the actor may create a request: relationship managers only (403)."""
+    if Role.RELATIONSHIP_MANAGER not in actor.roles:
+        raise Forbidden("Only a relationship manager can create a request.")
+
+
 def submit(
     actor: Actor, application_id: str, terms: Terms, request_id: UUID, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
@@ -201,8 +207,7 @@ def submit(
     up; one request per application is the database's unique constraint, the one rule that spans rows
     (design doc 4.1).
     """
-    if Role.RELATIONSHIP_MANAGER not in actor.roles:
-        raise Forbidden("Only a relationship manager can create a request.")
+    check_submit(actor)
     request = PricingExceptionRequest(
         id=request_id,
         application_id=application_id,
@@ -275,17 +280,27 @@ def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, 
 
 
 def collection_permissions(actor: Actor) -> dict[Action, DomainError | None]:
-    """Skeleton for the red commit: no behaviour yet."""
+    """What the actor may do with the collection of requests: create one (P7). Like permissions(), it runs
+    the action's own check, so the answer and submit() can never disagree."""
+    try:
+        check_submit(actor)
+    except DomainError as refusal:
+        return {Action.CREATE: refusal}
     return {Action.CREATE: None}
 
 
 _STAFF = frozenset({Role.RELATIONSHIP_MANAGER, Role.REVIEWER})
 
 
+def is_staff(roles: frozenset[Role]) -> bool:
+    """Staff are relationship managers and reviewers: the people who work with requests."""
+    return bool(roles & _STAFF)
+
+
 def require_staff(actor: Actor) -> None:
     """Reading requests is for staff: relationship managers and reviewers. The mortgage process reads only
     approved discounts (design doc 5.1)."""
-    if not actor.roles & _STAFF:
+    if not is_staff(actor.roles):
         raise Forbidden("Only relationship managers and reviewers can read requests.")
 
 

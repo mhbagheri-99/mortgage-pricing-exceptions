@@ -542,6 +542,64 @@ button.decline {
   font-size: 0.875rem;
 }
 
+/* ---- What the mortgage process reads ---- */
+
+.consumer {
+  max-width: 50rem;
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+  background: var(--pane);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.consumer-hint {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.consumer-line {
+  margin-top: 0.6rem;
+  font-weight: 600;
+}
+
+.consumer-line.approved {
+  color: var(--approved-ink);
+}
+
+.consumer details {
+  margin-top: 0.6rem;
+}
+
+.consumer summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.consumer-call {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.consumer pre {
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.create-note {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
 /* ---- History: a timeline, oldest first ---- */
 
 .history {

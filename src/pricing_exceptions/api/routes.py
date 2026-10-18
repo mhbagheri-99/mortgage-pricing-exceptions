@@ -20,7 +20,6 @@ from pricing_exceptions.api.schemas import (
     NoDiscount,
     PageOut,
     RequestOut,
-    RequestSummary,
     ReviseRequest,
 )
 from pricing_exceptions.domain.model import Actor, Clock, Status
@@ -54,11 +53,12 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         cursor: Annotated[str | None, Query(max_length=200)] = None,
     ) -> PageOut:
-        """Requests in one status, oldest first, one page at a time. Follow `next_cursor` until it is null."""
+        """Requests in one status, oldest first, one page at a time. Follow `next_cursor` until it is null.
+        `permissions` says whether the caller may create a request."""
         after = read_cursor(cursor) if cursor is not None else None
         page = queries.list_requests(engine, actor, status, after, limit)
         next_cursor = write_cursor(page.next_after) if page.next_after else None
-        return PageOut(items=[RequestSummary.of(item) for item in page.items], next_cursor=next_cursor)
+        return PageOut.for_caller(page.items, next_cursor, actor)
 
     @router.get(REQUESTS + "/{request_id}", name="get", tags=["requests"])
     def get(request_id: UUID, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:

@@ -25,8 +25,9 @@
     <nav class="queue" aria-labelledby="queue-title">
       <div class="queue-head">
         <h2 id="queue-title">Requests</h2>
-        <button type="button" id="new-request" class="primary">New request</button>
+        <button type="button" id="new-request" class="primary" hidden>New request</button>
       </div>
+      <p id="create-note" class="create-note" hidden></p>
       <div class="status-tabs" role="group" aria-label="Show requests that are">
         <button type="button" data-status="PENDING_REVIEW" aria-pressed="true">Pending review</button>
         <button type="button" data-status="APPROVED" aria-pressed="false">Approved</button>

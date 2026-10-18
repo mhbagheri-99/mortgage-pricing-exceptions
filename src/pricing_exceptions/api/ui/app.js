@@ -161,7 +161,6 @@ async function start() {
         : `The user list did not load (${result.status || "no answer"}).`;
     note.hidden = false;
     $("acting-as").disabled = true;
-    $("new-request").disabled = true;
     clearList("Nobody to act as.");
     return;
   }
@@ -198,6 +197,16 @@ function clearList(message) {
   $("load-more").hidden = true;
   $("list-empty").textContent = message;
   $("list-empty").hidden = false;
+  showCreate(null);
+}
+
+// The list says whether the caller may create a request (`permissions.create`, P7): the button shows only
+// then; otherwise one line gives the server's reason. Nobody chosen yet means neither.
+function showCreate(permission) {
+  const allowed = Boolean(permission && permission.allowed);
+  $("new-request").hidden = !allowed;
+  $("create-note").hidden = allowed || !permission;
+  $("create-note").textContent = permission && !allowed ? `New requests: ${permission.detail}` : "";
 }
 
 // Oldest first, one page at a time; "Load more" follows next_cursor until it is null (design doc 5.6).
@@ -211,9 +220,11 @@ async function loadList(more = false) {
     state.nextCursor = null;
     $("load-more").hidden = true;
     $("list-empty").hidden = true;
+    showCreate(null);
     renderProblem($("list-problem"), result);
     return;
   }
+  showCreate(result.data.permissions?.create);
   const rows = result.data.items.map(row);
   if (more) $("rows").append(...rows);
   else $("rows").replaceChildren(...rows);
@@ -388,6 +399,12 @@ function renderRequest(record, notice = "") {
     ),
     el(
       "section",
+      { className: "consumer", attrs: { id: "consumer", "aria-labelledby": "consumer-title" } },
+      el("h3", { attrs: { id: "consumer-title" }, text: "What the mortgage process reads" }),
+      el("p", { className: "consumer-hint", text: "Asking the service..." }),
+    ),
+    el(
+      "section",
       { className: "history", attrs: { "aria-labelledby": "history-title" } },
       el("h3", { attrs: { id: "history-title" }, text: "History" }),
       timeline(record.history),
@@ -407,6 +424,54 @@ function renderRequest(record, notice = "") {
     refused.length ? notAvailable(refused) : null,
   );
   markSelected();
+  loadConsumerView(record);
+}
+
+// What the mortgage application process, an external system, receives for this request's application: the
+// real consumer endpoint, shown as one line and as the exact answer (FR-4, design doc 5.4).
+async function loadConsumerView(record) {
+  const path = `/api/v1/mortgage-applications/${encodeURIComponent(record.application_id)}/approved-discount`;
+  const result = await call("GET", path);
+  const panel = $("consumer");
+  if (!panel || state.shownId !== record.id) return; // another request was opened meanwhile
+  const answer = el("div");
+  if (!result.ok) {
+    renderProblem(answer, result);
+  } else if (result.data.status === "APPROVED") {
+    const approved = result.data;
+    answer.append(
+      el("p", {
+        className: "consumer-line approved",
+        text:
+          `Approved discount: ${discount(approved.discount_bps)}, revision ${approved.revision}, approved by ` +
+          `${approved.approved_by} at ${when(approved.approved_at)}.`,
+      }),
+    );
+  } else {
+    answer.append(
+      el("p", {
+        className: "consumer-line",
+        text: `No approved discount yet: it reads NONE for ${result.data.application_id}.`,
+      }),
+    );
+  }
+  answer.append(
+    el(
+      "details",
+      {},
+      el("summary", { text: "Show the API response" }),
+      el("p", { className: "consumer-call", text: `GET ${path}` }),
+      el("pre", { text: JSON.stringify(result.data, null, 2) }),
+    ),
+  );
+  panel.replaceChildren(
+    el("h3", { attrs: { id: "consumer-title" }, text: "What the mortgage process reads" }),
+    el("p", {
+      className: "consumer-hint",
+      text: "The external mortgage application process asks for this application's approved discount and gets this answer.",
+    }),
+    answer,
+  );
 }
 
 function notAvailable(refused) {
