@@ -42,6 +42,9 @@ select = ["E", "F", "W", "I", "B", "UP", "S", "TID", "DTZ", "PT", "SIM", "C4", "
 # The hooks and the gate runner call git and the check tools.
 ".claude/hooks/**" = ["S603", "S607"]
 "scripts/**" = ["S603", "S607"]
+# The race barrier's 10 ms pause between polls: the one time.sleep allowed (design doc 7.10, agreed in P5).
+# This file holds only the polling helper, because the ignore lifts every banned API in it.
+"tests/integration/races.py" = ["TID251"]
 
 [tool.ruff.lint.flake8-tidy-imports.banned-api]
 "psycopg2".msg = "Use psycopg 3: import psycopg."
