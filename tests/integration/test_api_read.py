@@ -174,7 +174,7 @@ def walk(client: TestClient, limit: int, **params: str) -> list[list[dict[str, o
         response = client.get(REQUESTS, params=query, headers=as_user("rv.dana"))
         assert response.status_code == 200
         page = response.json()
-        assert set(page) == {"items", "next_cursor"}
+        assert set(page) == {"items", "next_cursor", "permissions"}
         pages.append(page["items"])
         cursor = page["next_cursor"]
         if cursor is None:

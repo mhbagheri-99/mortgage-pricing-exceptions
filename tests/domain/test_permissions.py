@@ -1,4 +1,5 @@
-"""rules.permissions(): what a caller may do to a request as it is now (P7, design doc 10.2).
+"""rules.permissions(): what a caller may do to a request as it is now, and rules.collection_permissions():
+whether they may create one (P7, design doc 10.2).
 
 The page shows only the actions the server says a caller may take, and the server still enforces every rule
 when the action is tried. So the permissions must never disagree with the actions: the second test runs the
@@ -16,7 +17,16 @@ import pytest
 
 from pricing_exceptions.domain.errors import Forbidden, FourEyesViolation, InvalidState
 from pricing_exceptions.domain.model import Actor, Decision, Outcome, PricingExceptionRequest, Role, Status
-from pricing_exceptions.domain.rules import Action, Terms, Verdict, decide, permissions, revise
+from pricing_exceptions.domain.rules import (
+    Action,
+    Terms,
+    Verdict,
+    collection_permissions,
+    decide,
+    permissions,
+    revise,
+    submit,
+)
 
 REQUEST_ID = uuid.UUID("3f2c9a1e-6b0d-4c55-9e1a-2d7f0b8c4a10")
 CREATED = datetime(2026, 10, 15, 9, 0, tzinfo=UTC)
@@ -113,3 +123,40 @@ def test_permissions_never_disagree_with_the_actions(status: Status, user: str) 
             with pytest.raises(type(refusal)) as raised:
                 attempt()
             assert str(raised.value) == str(refusal)
+
+
+# Creating adds to the collection of requests, so the list answers it (P7): relationship managers only.
+# lead.fatima holds both roles, so she may.
+@pytest.mark.req(id="N5")
+@pytest.mark.parametrize(
+    ("user", "expected"),
+    [
+        pytest.param("lead.fatima", ALLOWED, id="both roles"),
+        pytest.param("rm.bram", ALLOWED, id="relationship manager"),
+        pytest.param("rv.dana", FORBIDDEN, id="reviewer"),
+        pytest.param("svc.mortgage", FORBIDDEN, id="mortgage process"),
+    ],
+)
+def test_only_relationship_managers_may_create(user: str, expected: type | None) -> None:
+    allowed = collection_permissions(USERS[user])
+    assert list(allowed) == [Action.CREATE]
+    refusal = allowed[Action.CREATE]
+    assert (None if refusal is None else type(refusal)) == expected
+
+
+@pytest.mark.req(id="N5")
+@pytest.mark.parametrize("user", COLUMNS)
+def test_the_create_permission_never_disagrees_with_submit(user: str) -> None:
+    actor = USERS[user]
+    refusal = collection_permissions(actor)[Action.CREATE]
+
+    def attempt() -> object:
+        return submit(actor, "MA-1007", Terms(25, "New request"), REQUEST_ID, NOW)
+
+    if refusal is None:
+        created, _ = attempt()  # the create goes through
+        assert created.requested_by == actor.id
+    else:
+        with pytest.raises(type(refusal)) as raised:
+            attempt()
+        assert str(raised.value) == str(refusal)

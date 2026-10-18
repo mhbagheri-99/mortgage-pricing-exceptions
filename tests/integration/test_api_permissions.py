@@ -59,6 +59,26 @@ def test_a_request_says_what_its_caller_may_do(
 
 
 @pytest.mark.req(id="N5")
+@pytest.mark.parametrize(
+    ("user", "create"),
+    [
+        pytest.param("rm.anna", ALLOWED, id="relationship manager"),
+        pytest.param("lead.fatima", ALLOWED, id="both roles"),
+        pytest.param(
+            "rv.dana",
+            refused("forbidden", "Only a relationship manager can create a request."),
+            id="reviewer",
+        ),
+    ],
+)
+def test_the_list_says_whether_its_caller_may_create(client: TestClient, user: str, create: dict) -> None:
+    # Creating adds to the collection, so the collection answers it, on every page.
+    response = client.get(REQUESTS, headers=as_user(user))
+    assert response.status_code == 200
+    assert response.json()["permissions"] == {"create": create}
+
+
+@pytest.mark.req(id="N5")
 def test_write_answers_say_what_the_caller_may_do_next(client: TestClient) -> None:
     # lead.fatima holds both roles, so only four-eyes stops her deciding her own request.
     created = client.post(REQUESTS, json=create_body("MA-1006"), headers=as_user("lead.fatima"))

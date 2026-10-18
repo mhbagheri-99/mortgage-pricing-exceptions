@@ -243,8 +243,9 @@ def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
 
 
 class Action(StrEnum):
-    """What a caller can do to an existing request."""
+    """What a caller can do: create a request, or decide or revise an existing one."""
 
+    CREATE = "create"
     DECIDE = "decide"
     REVISE = "revise"
 
@@ -271,6 +272,11 @@ def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, 
         else:
             allowed[action] = None
     return allowed
+
+
+def collection_permissions(actor: Actor) -> dict[Action, DomainError | None]:
+    """Skeleton for the red commit: no behaviour yet."""
+    return {Action.CREATE: None}
 
 
 _STAFF = frozenset({Role.RELATIONSHIP_MANAGER, Role.REVIEWER})

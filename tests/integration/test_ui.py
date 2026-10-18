@@ -21,7 +21,7 @@ UI = Path(pricing_exceptions.api.__file__).parent / "ui"
 # default-src covers scripts, styles and fetch; the other three are the directives it does not cover: a
 # planted <base> tag, a form posting elsewhere, and another site framing the page (P7 decision 3).
 POLICY = "default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
-SEEDED_USERS = [
+STAFF_USERS = [
     {
         "id": "lead.fatima",
         "display_name": "Fatima, team lead: relationship manager and reviewer",
@@ -31,19 +31,15 @@ SEEDED_USERS = [
     {"id": "rm.bram", "display_name": "Bram, relationship manager", "roles": ["RELATIONSHIP_MANAGER"]},
     {"id": "rv.dana", "display_name": "Dana, reviewer", "roles": ["REVIEWER"]},
     {"id": "rv.erik", "display_name": "Erik, reviewer", "roles": ["REVIEWER"]},
-    {
-        "id": "svc.mortgage",
-        "display_name": "Mortgage application process (a service)",
-        "roles": ["MORTGAGE_PROCESS"],
-    },
 ]
 
 
-def test_the_demo_user_list_names_every_seeded_user(client: TestClient) -> None:
-    # No X-User-Id: the switcher reads the list before anyone has been chosen.
+def test_the_demo_user_list_names_every_staff_user(client: TestClient) -> None:
+    # No X-User-Id: the switcher reads the list before anyone has been chosen. svc.mortgage is not in it:
+    # it is the mortgage process's account, which reads approved discounts through the API, not this page.
     response = client.get("/demo/users")
     assert response.status_code == 200
-    assert response.json() == SEEDED_USERS
+    assert response.json() == STAFF_USERS
 
 
 @pytest.mark.req(id="N5")
