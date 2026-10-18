@@ -27,6 +27,8 @@ is finished. "Where it comes from" is the client need behind each row, in our ow
 | N4 | **Audit.** Every state change writes exactly one history event in the same transaction, and history is only ever added to. | The history need behind FR-5. | P4 |
 | N5 | **Access control.** The server enforces roles, requester-only changes and four-eyes; the demo identity is off unless it is switched on. | Our reading of an authorised reviewer: the reviewer role, and never the requester. | P2 |
 | N8 | **Consistency over availability.** When the database is unavailable, a write is refused with 503 rather than accepted without its guarantees. | A wrong discount changes what a borrower pays. | P5 |
-| N9 | **Bounded waiting.** No call takes more than about 8 seconds; a wait for a lock stops at 2 seconds. | A hung call looks like a timeout and starts the retries of FR-6. | P5 |
+| N9 | **Bounded waiting.** Once a call holds its database connection, it takes no more than about 8 seconds; a wait for a lock stops at 2 seconds. The demo identity's user lookup takes a connection of its own, so a full pool can add up to 3 seconds. | A hung call looks like a timeout and starts the retries of FR-6. | P5 |
 
-N6 (runs locally with one command), N7 (this gate) and N10 (latency) are checked by CI steps, not by tagged tests.
+These three have no tagged test. N6 (runs locally with one command) is checked by the CI step that starts the
+app with `docker compose up` and calls it. N7 (evidence for the requirements above) is this gate itself. N10
+(latency under 100 ms per call at internal-tool load) is not measured by any test or CI step.

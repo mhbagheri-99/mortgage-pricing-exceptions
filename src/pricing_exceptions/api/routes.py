@@ -12,6 +12,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Query, Response
 
 from pricing_exceptions.api.cursor import read_cursor, write_cursor
+from pricing_exceptions.api.problems import described
 from pricing_exceptions.api.schemas import (
     APPLICATION_ID_PATTERN,
     ApprovedDiscount,
@@ -29,11 +30,26 @@ from pricing_exceptions.service import Engine, commands, queries
 PREFIX = "/api/v1"
 REQUESTS = "/pricing-exception-requests"
 
+TEXT = {"type": "string"}
+CREATED_HEADERS = {
+    "Location": {"description": "Where the request can be read", "schema": TEXT},
+    "Idempotent-Replayed": {
+        "description": "true when this answer replays an earlier, identical create",
+        "schema": TEXT,
+    },
+}
+
 
 def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> APIRouter:
     router = APIRouter(prefix=PREFIX)
 
-    @router.post(REQUESTS, status_code=201, name="create", tags=["requests"])
+    @router.post(
+        REQUESTS,
+        status_code=201,
+        name="create",
+        tags=["requests"],
+        responses={201: {"headers": CREATED_HEADERS}, **described(400, 401, 403, 409, 422, 503)},
+    )
     def create(
         body: CreateRequest, actor: Annotated[Actor, Depends(caller)], response: Response
     ) -> RequestOut:
@@ -46,7 +62,7 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
             response.headers["Idempotent-Replayed"] = "true"
         return RequestOut.for_caller(created.record, actor)
 
-    @router.get(REQUESTS, name="list", tags=["requests"])
+    @router.get(REQUESTS, name="list", tags=["requests"], responses=described(401, 403, 422, 503))
     def list_requests(
         actor: Annotated[Actor, Depends(caller)],
         status: Status = Status.PENDING_REVIEW,
@@ -60,12 +76,22 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         next_cursor = write_cursor(page.next_after) if page.next_after else None
         return PageOut.for_caller(page.items, next_cursor, actor)
 
-    @router.get(REQUESTS + "/{request_id}", name="get", tags=["requests"])
+    @router.get(
+        REQUESTS + "/{request_id}",
+        name="get",
+        tags=["requests"],
+        responses=described(401, 403, 404, 422, 503),
+    )
     def get(request_id: UUID, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
         """The request as it is now, its latest decision, its whole history, and what the caller may do."""
         return RequestOut.for_caller(queries.get_request(engine, actor, request_id), actor)
 
-    @router.post(REQUESTS + "/{request_id}/revisions", name="revise", tags=["requests"])
+    @router.post(
+        REQUESTS + "/{request_id}/revisions",
+        name="revise",
+        tags=["requests"],
+        responses=described(400, 401, 403, 404, 409, 422, 503),
+    )
     def revise(request_id: UUID, body: ReviseRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
         """Change the discount and the reason, as the next revision. Only the requester, while the request
         awaits review, or after a decline as a resubmission; approved is final. Send the revision you saw:
@@ -74,7 +100,12 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         revised = commands.revise(engine, clock, actor, request_id, body.revision, terms)
         return RequestOut.for_caller(revised, actor)
 
-    @router.post(REQUESTS + "/{request_id}/decisions", name="decide", tags=["requests"])
+    @router.post(
+        REQUESTS + "/{request_id}/decisions",
+        name="decide",
+        tags=["requests"],
+        responses=described(400, 401, 403, 404, 409, 422, 503),
+    )
     def decide(request_id: UUID, body: DecideRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
         """Approve or decline the revision you reviewed. A reviewer who did not make the request; a decline
         needs a comment. The decision records who and when, and binds to that revision only."""
@@ -87,6 +118,7 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         name="approved-discount",
         tags=["mortgage process"],
         dependencies=[Depends(caller)],  # every role may read it, but only a known caller
+        responses=described(401, 404, 422, 503),
     )
     def approved_discount(
         application_id: Annotated[str, Path(pattern=APPLICATION_ID_PATTERN)],

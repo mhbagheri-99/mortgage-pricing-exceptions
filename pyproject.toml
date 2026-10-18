@@ -23,6 +23,7 @@ module-name = "pricing_exceptions"
 dev = [
     "httpx2==2.13.1",
     "import-linter==2.15",
+    "mutmut==3.8.0",
     "mypy==2.4.0",
     "pytest==9.1.1",
     "ruff==0.17.1",
@@ -100,3 +101,12 @@ testpaths = ["tests"]
 addopts = ["--strict-markers"]
 markers = ["req(id): the requirement id (FR-n or Nn) this test proves; see docs/requirements.md"]
 filterwarnings = ["error::DeprecationWarning", "error::PendingDeprecationWarning"]
+
+# ---- Mutation testing ------------------------------------------------------
+# A report, not a gate: mutmut makes small deliberate bugs in the domain's rules and runs the domain tests, and
+# a bug no test notices "survives". It needs fork, which Windows lacks, so it runs in a Linux container. mutmut 3
+# changes the code inside functions only; module-level constants are not mutated.
+[tool.mutmut]
+source_paths = ["src/"]
+only_mutate = ["src/pricing_exceptions/domain/rules.py", "src/pricing_exceptions/domain/model.py"]
+pytest_add_cli_args_test_selection = ["tests/domain"]

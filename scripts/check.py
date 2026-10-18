@@ -7,6 +7,7 @@ every test). `--check-reqs` runs the requirement-id gate alone.
 
 import argparse
 import ast
+import fnmatch
 import os
 import re
 import shutil
@@ -15,6 +16,7 @@ import sys
 import tempfile
 import textwrap
 import tokenize
+import tomllib
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from xml.etree import ElementTree
@@ -244,15 +246,111 @@ def tool(*command: str, cwd: Path = ROOT) -> tuple[bool, str]:
     return result.returncode == 0, (result.stdout + result.stderr).strip()
 
 
-def run_tests(root: Path, test_dirs: list[str]) -> tuple[bool, str]:
-    """Run the tests, and fail when any of them did not run: this catches a skip however it was written.
+def python_file_patterns(root: Path) -> list[str]:
+    """pytest's `python_files` setting from pyproject.toml, or pytest's own default when it is not set."""
+    try:
+        options = tomllib.loads((root / "pyproject.toml").read_text(encoding="utf-8"))
+    except OSError, tomllib.TOMLDecodeError:
+        options = {}
+    patterns = options.get("tool", {}).get("pytest", {}).get("ini_options", {}).get("python_files")
+    if patterns is None:
+        return ["test_*.py", "*_test.py"]
+    return patterns.split() if isinstance(patterns, str) else list(patterns)
 
+
+def collected_files(root: Path, test_dirs: list[str]) -> list[Path]:
+    """The files pytest collects for these arguments: one named in full, or a match for `python_files`."""
+    patterns = python_file_patterns(root)
+
+    def matches(path: Path) -> bool:
+        return any(
+            fnmatch.fnmatch(path.as_posix(), f"*/{pattern}")  # a pattern with a separator matches the path
+            if "/" in pattern
+            else fnmatch.fnmatch(path.name, pattern)
+            for pattern in patterns
+        )
+
+    files: set[Path] = set()
+    for argument in test_dirs:
+        path = root / argument
+        if path.is_file():
+            files.add(path)
+        elif path.is_dir():
+            files.update(found for found in path.rglob("*.py") if matches(found))
+    return sorted(files)
+
+
+def _is_fixture(function: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """`@fixture`, `@pytest.fixture` and `@pytest.fixture(...)`: pytest does not collect these as tests."""
+    targets = (d.func if isinstance(d, ast.Call) else d for d in function.decorator_list)
+    return any(
+        (isinstance(t, ast.Attribute) and t.attr == "fixture")
+        or (isinstance(t, ast.Name) and t.id == "fixture")
+        for t in targets
+    )
+
+
+def _written_tests(node: ast.AST, scope: tuple[str, ...] = ()) -> Iterator[tuple[str, ...]]:
+    """The test functions written under `node`, each as its class names and then its own name.
+
+    A test function is named test_* and sits at module level or in a class named Test*, also under an if, a
+    try, a with or a loop. One inside another function is no test, and nor is a fixture named test_*.
+    """
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.FunctionDef | ast.AsyncFunctionDef):
+            if child.name.startswith("test_") and not _is_fixture(child):
+                yield (*scope, child.name)
+        elif isinstance(child, ast.ClassDef):
+            if child.name.startswith("Test"):
+                yield from _written_tests(child, (*scope, child.name))
+        else:
+            yield from _written_tests(child, scope)
+
+
+def written_test_functions(root: Path, test_dirs: list[str]) -> dict[tuple[str, str], str]:
+    """Each test function written in the collected files: JUnit's (classname, name) to `file::Class::name`."""
+    written: dict[tuple[str, str], str] = {}
+    for path in collected_files(root, test_dirs):
+        relative = path.relative_to(root).as_posix()
+        module = relative.removesuffix(".py").replace("/", ".")  # how pytest forms a JUnit classname
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError, ValueError:
+            continue  # pytest reports a file that does not parse, and the run fails on that
+        for *classes, name in _written_tests(tree):
+            written[(".".join([module, *classes]), name)] = "::".join([relative, *classes, name])
+    return written
+
+
+def run_tests(root: Path, test_dirs: list[str]) -> tuple[bool, str]:
+    """Run the tests, and fail unless every test function written in the collected files ran.
+
+    It fails on three things, and only these:
+    - a test that pytest reports as skipped or xfailed, however the skip was written, and a deselected test;
+    - a test function that is written in a collected file but missing from the report: switched off with
+      `__test__ = False`, left out by `collect_ignore` or a collection hook, or never reached because an
+      earlier test called `pytest.exit(returncode=0)`. The source is read with `ast` and compared with the
+      JUnit report, so the report cannot be argued with from inside the run;
+    - an empty run, or a run that wrote no report.
+
+    It does not catch a test that returns early, or one whose asserts are weakened. A test function written
+    under a condition that is false on the machine, such as `if sys.platform == "win32":`, fails it too.
     The counts come from pytest's JUnit XML report, not the console, so stray output cannot hide them.
     """
+    # Read as the run starts, not after it: the run can take minutes, and the files may change meanwhile.
+    written = written_test_functions(root, test_dirs)
     with tempfile.TemporaryDirectory() as scratch:
         report = Path(scratch) / "report.xml"
         ok, output = tool(
-            sys.executable, "-m", "pytest", "-q", "-rsxX", f"--junitxml={report}", *test_dirs, cwd=root
+            sys.executable,
+            "-m",
+            "pytest",
+            "-q",
+            "-rsxX",
+            f"--rootdir={root}",
+            f"--junitxml={report}",
+            *test_dirs,
+            cwd=root,
         )
         if not ok:
             return False, output
@@ -270,6 +368,14 @@ def run_tests(root: Path, test_dirs: list[str]) -> tuple[bool, str]:
             False,
             f"{output}\nEvery test must run, but {skipped} skipped or xfailed, {deselected} deselected.",
         )
+    # JUnit's classname is the file's dotted path and the test's class names; its name carries any parameters.
+    reported = {
+        (case.get("classname", ""), case.get("name", "").partition("[")[0]) for case in top.iter("testcase")
+    }
+    never_ran = sorted(shown for key, shown in written.items() if key not in reported)
+    if never_ran:
+        listing = "\n".join(f"  {name}" for name in never_ran)
+        return False, f"{output}\nEvery test function must run, but these never ran:\n{listing}"
     return True, output
 
 

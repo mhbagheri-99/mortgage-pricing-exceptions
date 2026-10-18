@@ -7,6 +7,7 @@
       "Edit(/.github/**)",
       "Edit(/pyproject.toml)",
       "Edit(/docs/requirements.md)",
+      "Edit(/uv.lock)",
       "Bash(git commit *)",
       "Bash(git * commit *)",
       "Bash(git push *)",
@@ -14,13 +15,23 @@
       "Bash(docker compose down -v*)",
       "Bash(uv add *)",
       "Bash(uv remove *)",
+      "Bash(uv lock*)",
+      "Bash(uv sync --upgrade*)",
+      "Bash(uv sync * --upgrade*)",
+      "Bash(uv sync -U*)",
+      "Bash(uv sync * -U*)",
       "PowerShell(git commit *)",
       "PowerShell(git * commit *)",
       "PowerShell(git push *)",
       "PowerShell(git * push *)",
       "PowerShell(docker compose down -v*)",
       "PowerShell(uv add *)",
-      "PowerShell(uv remove *)"
+      "PowerShell(uv remove *)",
+      "PowerShell(uv lock*)",
+      "PowerShell(uv sync --upgrade*)",
+      "PowerShell(uv sync * --upgrade*)",
+      "PowerShell(uv sync -U*)",
+      "PowerShell(uv sync * -U*)"
     ],
     "deny": [
       "Bash(git push --force*)",
@@ -68,7 +79,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|MultiEdit|Write|NotebookEdit",
         "hooks": [
           {
             "type": "command",

@@ -9,6 +9,7 @@ services:
       POSTGRES_DB: pricing
     volumes:
       - pgdata:/var/lib/postgresql # PostgreSQL 18 keeps its data one level up from earlier versions
+    restart: unless-stopped # like the api: after a Docker restart both come back, and the api finds its database
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U pricing -d pricing"]
       interval: 2s

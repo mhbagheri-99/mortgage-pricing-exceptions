@@ -1,7 +1,9 @@
 """The database engine, with the isolation level and the time limits the guarantees rely on (design doc 7.3).
 
-Worst case for one call: 3 s to get a connection (waiting for a pooled one, or opening a new one), then 5 s
-for the whole transaction, so the server gives up before a client that waits 10 s.
+Worst case for one use case: 3 s to get a connection (waiting for a pooled one, or opening a new one), then
+5 s for the whole transaction, so the server gives up before a client that waits 10 s. The demo identity's
+user lookup takes a pooled connection of its own first, so when the pool is full it can add up to 3 s more; a
+production token check reads no database, which removes that wait.
 """
 
 from sqlalchemy import Engine, create_engine, text

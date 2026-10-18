@@ -23,6 +23,7 @@ from pricing_exceptions.domain.rules import Terms, is_retry, latest_decision, re
 NOW = datetime(2026, 10, 18, 9, 12, 3, 120000, tzinfo=UTC)
 REQUEST_ID = UUID("3f2c0000-0000-4000-8000-000000000001")
 REASON = "Retention: competitor offer 25 bps below standard"
+NEW_REASON = "Competitor improved their offer"  # what rm.anna changed the reason to, along with the discount
 
 USERS = {
     "rm.anna": Actor("rm.anna", frozenset({Role.RELATIONSHIP_MANAGER})),
@@ -99,11 +100,19 @@ def submitted_by_anna() -> RequestRecord:
 
 
 def amended_to_30() -> RequestRecord:
-    """rm.anna's request after she changed it to 30 bps: the row moved on, the SUBMITTED event did not."""
+    """rm.anna's request after she changed it to 30 bps and a new reason: the row and the AMENDED event moved
+    on, the SUBMITTED event did not."""
     record = submitted_by_anna()
-    amended = replace(record.request, revision=2, discount_bps=30, reason="Competitor improved their offer")
-    amendment = replace(record.history[0], event_type=EventType.AMENDED, revision=2, discount_bps=30)
+    amended = replace(record.request, revision=2, discount_bps=30, reason=NEW_REASON)
+    amendment = replace(
+        record.history[0], event_type=EventType.AMENDED, revision=2, discount_bps=30, reason=NEW_REASON
+    )
     return RequestRecord(amended, (*record.history, amendment))
+
+
+def never_submitted() -> RequestRecord:
+    """A record whose history has no SUBMITTED event: nothing says what the first create sent."""
+    return RequestRecord(submitted_by_anna().request, ())
 
 
 @pytest.mark.req(id="FR-6")
@@ -115,9 +124,10 @@ def amended_to_30() -> RequestRecord:
             amended_to_30, "rm.anna", Terms(25, REASON), True, id="the original create, after a change"
         ),
         pytest.param(
-            amended_to_30, "rm.anna", Terms(30, REASON), False, id="the current terms, not the first"
+            amended_to_30, "rm.anna", Terms(30, NEW_REASON), False, id="the current terms, not the first"
         ),
         pytest.param(submitted_by_anna, "rm.anna", Terms(30, REASON), False, id="another discount"),
+        pytest.param(never_submitted, "rm.anna", Terms(25, REASON), False, id="no SUBMITTED event to repeat"),
         pytest.param(
             submitted_by_anna, "rm.anna", Terms(25, REASON + " "), False, id="a reason one space longer"
         ),

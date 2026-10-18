@@ -30,6 +30,8 @@ from pricing_exceptions.domain.rules import Action, collection_permissions, late
 # $ is the very end of the text.
 APPLICATION_ID_PATTERN = r"^[A-Za-z0-9._-]{1,64}$"
 ApplicationId = Annotated[str, StringConstraints(strict=True, pattern=APPLICATION_ID_PATTERN)]
+# What a 422 says instead of the pattern itself, which means little to a person.
+PATTERN_RULES = {APPLICATION_ID_PATTERN: "must be 1 to 64 letters, digits, dots, underscores or hyphens"}
 
 
 class CreateRequest(BaseModel):
@@ -229,6 +231,40 @@ class ApprovedDiscount(BaseModel):
             approved_by=request.decision.decided_by,
             approved_at=request.decision.decided_at,
         )
+
+
+class Problem(BaseModel):
+    """An error answer, as RFC 9457 problem details, sent as application/problem+json. Clients branch on
+    `type`; `detail` is for people. These models describe the answers in /openapi.json; api/problems.py
+    builds them."""
+
+    type: str
+    title: str
+    status: int
+    detail: str | None = None
+
+
+class FieldError(BaseModel):
+    """One broken field: a JSON pointer into the body, or the name of a path or query parameter. Never the
+    input itself, which can hold reason text."""
+
+    pointer: str | None = None
+    parameter: str | None = None
+    detail: str
+
+
+class ValidationProblem(Problem):
+    """422: every broken field at once."""
+
+    errors: list[FieldError]
+
+
+class ConflictProblem(Problem):
+    """409: `current` is the request as it is now, without its history; `sent_revision` comes with a
+    stale-revision only."""
+
+    current: RequestCurrent
+    sent_revision: int | None = None
 
 
 class DemoUser(BaseModel):

@@ -154,6 +154,36 @@ def test_only_the_requester_revises(user: str, allowed: bool) -> None:
 
 @pytest.mark.req(id="N5")
 @pytest.mark.parametrize(
+    ("actor", "message"),
+    [
+        pytest.param(
+            RV_DANA, "Only a relationship manager can revise a request.", id="not a relationship manager"
+        ),
+        pytest.param(
+            RM_BRAM,
+            "Only the relationship manager who made the request can revise it.",
+            id="another manager's request",
+        ),
+    ],
+)
+def test_a_refused_revision_says_why(actor: Actor, message: str) -> None:
+    """The page shows the server's refusal as the reason, so the words are pinned exactly (a mutation run
+    found them untested). lead.fatima made the request."""
+    with pytest.raises(Forbidden) as raised:
+        revise(a_request(Status.PENDING_REVIEW), actor, 2, NEW_TERMS, NOW)
+    assert str(raised.value) == message
+
+
+@pytest.mark.req(id="N1")
+def test_revising_an_approved_request_names_its_status() -> None:
+    with pytest.raises(InvalidState) as raised:
+        revise(a_request(Status.APPROVED), LEAD_FATIMA, 2, NEW_TERMS, NOW)
+    assert raised.value.status is Status.APPROVED
+    assert str(raised.value) == "A request that is APPROVED cannot be revised."
+
+
+@pytest.mark.req(id="N5")
+@pytest.mark.parametrize(
     ("user", "may_revise", "may_decide"),
     [
         ("rm.anna", True, False),

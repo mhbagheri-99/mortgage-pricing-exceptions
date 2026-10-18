@@ -19,10 +19,16 @@ Check every change against these invariants. Report real violations and real ris
 4. Isolation: READ COMMITTED stays pinned on the engine.
 5. Locking: a request is locked by primary key only, with `FOR NO KEY UPDATE`, and nothing else in its WHERE
    clause. No network call happens while the lock is held.
-6. Responses: every response that shows a request comes from `db.requests.read_request()`.
+6. Responses: every response that shows a request with its history (GET, create and its replay, revise,
+   decide), and every 409's `current`, comes from `db.requests.read_request()`. The list rows and the approved
+   discount have their own queries, mapped by the same row function.
 7. Decisions: the decision columns match the status; a resubmission clears them; history keeps every decision.
-8. Order of checks: JSON (400), identity (401), shape and values (422), then the lock (404), role and four-eyes
-   (403), status (409 `invalid-state`), revision (409 `stale-revision`).
+8. Order of checks. A change: JSON (400), identity (401), shape and values (422), the role (403, before any
+   database access), then the lock (404), ownership or four-eyes (403), status (409 `invalid-state`), revision
+   (409 `stale-revision`). A read: identity (401), parameters (422), the staff role (403), then the lookup (404);
+   the approved-discount read asks no role. A create: after the role, the application (422
+   `application-not-found`), then the insert. The role comes first because it depends only on who asks: it
+   takes no lock and lets nobody without the role probe which ids exist.
 9. Time and money: times come from the injected clock, in UTC; discounts are integer basis points.
 10. Time limits: pool 3 s, lock 2 s, statement 3 s and transaction 5 s stay in place.
 11. Tests: no skip or xfail; no weakened assert, such as `==` becoming `>=`; every requirement test carries its

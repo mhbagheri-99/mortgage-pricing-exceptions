@@ -3,6 +3,7 @@ isolation level and time limits are really in effect on a pooled connection."""
 
 import time
 
+from calls import REQUESTS, seeded_id
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
@@ -39,10 +40,28 @@ def counts(engine: Engine) -> tuple[int, int, int, int]:
 
 
 def test_seed_runs_twice(engine: Engine) -> None:
+    """Twenty applications, four of them with a seeded request: sixteen stay free for a live walk-through,
+    because each application takes one request for good."""
     seed(engine)
-    assert counts(engine) == (6, 8, 4, 7)
+    assert counts(engine) == (6, 20, 4, 7)
     seed(engine)
-    assert counts(engine) == (6, 8, 4, 7)
+    assert counts(engine) == (6, 20, 4, 7)
+
+
+def test_seed_leaves_a_changed_seeded_request_alone(engine: Engine) -> None:
+    """A second `docker compose up` after a demo seeds again: what the demo changed must stay as it is."""
+    client = TestClient(create_app(engine, system_clock, demo_identity=True))
+    revised = client.post(
+        f"{REQUESTS}/{seeded_id(1002)}/revisions",
+        json={"revision": 1, "discount_bps": 30, "reason": "Competitor improved their offer"},
+        headers={"X-User-Id": "rm.anna"},
+    )
+    assert revised.status_code == 200
+    seed(engine)
+    assert counts(engine) == (6, 20, 4, 8)
+    again = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers={"X-User-Id": "rm.anna"}).json()
+    assert (again["revision"], again["discount_bps"]) == (2, 30)
+    assert [event["event_type"] for event in again["history"]] == ["SUBMITTED", "AMENDED"]
 
 
 SETTINGS = {

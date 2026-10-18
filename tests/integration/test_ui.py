@@ -50,6 +50,13 @@ def test_the_demo_user_list_is_404_with_the_demo_identity_off(engine: Engine, cl
     assert "rm.anna" not in response.text
 
 
+def test_the_bare_address_opens_the_page(client: TestClient) -> None:
+    """Someone who types only the address lands on the page, not on a JSON 404. Not part of the API."""
+    response = client.get("/", follow_redirects=False)
+    assert (response.status_code, response.headers["Location"]) == (307, "/ui/")
+    assert "/" not in client.get("/openapi.json").json()["paths"]
+
+
 def test_the_demo_user_list_is_not_in_the_api_description(client: TestClient) -> None:
     paths = client.get("/openapi.json").json()["paths"]
     assert REQUESTS in paths

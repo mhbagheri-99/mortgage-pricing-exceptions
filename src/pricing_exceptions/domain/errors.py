@@ -70,9 +70,9 @@ class RequestExists(Conflict):
 
     def __init__(self, current: RequestRecord) -> None:
         self.current = current
-        super().__init__(
-            f"Mortgage application {current.request.application_id} already has a request; revise it instead."
-        )
+        # No advice: revising is no way out of an approved request, nor of another manager's. `current` shows
+        # the request.
+        super().__init__(f"Mortgage application {current.request.application_id} already has a request.")
 
 
 class InvalidState(Conflict):

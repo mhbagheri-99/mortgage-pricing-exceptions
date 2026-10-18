@@ -178,6 +178,45 @@ def test_only_a_reviewer_who_is_not_the_requester_decides(
             decide(request, actor, 2, Verdict(Outcome.APPROVED), NOW)
 
 
+@pytest.mark.req(id="N5")
+@pytest.mark.parametrize(
+    ("actor", "error", "message"),
+    [
+        pytest.param(RM_BRAM, Forbidden, "Only a reviewer can decide a request.", id="no reviewer role"),
+        pytest.param(
+            LEAD_FATIMA, FourEyesViolation, "You cannot decide a request you made.", id="her own request"
+        ),
+    ],
+)
+def test_a_refused_decision_says_why(actor: Actor, error: type[DomainError], message: str) -> None:
+    """The page shows the server's refusal as the reason, so the words are pinned exactly (a mutation run
+    found them untested). lead.fatima made the request."""
+    with pytest.raises(error) as raised:
+        decide(a_request(Status.PENDING_REVIEW), actor, 2, Verdict(Outcome.APPROVED), NOW)
+    assert str(raised.value) == message
+
+
+@pytest.mark.req(id="N1")
+@pytest.mark.parametrize(
+    ("status", "message"),
+    [
+        pytest.param(
+            Status.APPROVED, "A request that is APPROVED cannot be decided.", id="approved is final"
+        ),
+        pytest.param(
+            Status.DECLINED,
+            "A request that is DECLINED cannot be decided.",
+            id="declined is resubmitted first",
+        ),
+    ],
+)
+def test_deciding_a_decided_request_names_its_status(status: Status, message: str) -> None:
+    with pytest.raises(InvalidState) as raised:
+        decide(a_request(status), RV_DANA, 2, Verdict(Outcome.APPROVED), NOW)
+    assert raised.value.status is status
+    assert str(raised.value) == message
+
+
 @pytest.mark.req(id="N1")
 @pytest.mark.parametrize("sent", [1, 3], ids=["an older revision", "a revision that does not exist yet"])
 def test_a_decision_binds_only_to_the_current_revision(sent: int) -> None:

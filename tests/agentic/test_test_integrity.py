@@ -5,6 +5,7 @@ Each test runs the real hook script as Claude Code would: a JSON event on stdin,
 
 import json
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -146,6 +147,24 @@ def test_asks_you_when_the_current_file_cannot_be_read(project: Path, broken: st
     result = edit(project, old, "def test_total():")
     assert result.returncode == 0
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask"
+
+
+SETTINGS = HOOK.parents[1] / "settings.json"
+# Every Claude Code tool that can write a file. The guard checks Edit and Write and asks you about the others,
+# but only a tool its trigger matches ever reaches it.
+FILE_EDITING_TOOLS = ["Edit", "MultiEdit", "Write", "NotebookEdit"]
+
+
+@pytest.mark.parametrize("tool", FILE_EDITING_TOOLS)
+def test_the_guard_is_triggered_for_every_file_editing_tool(tool: str) -> None:
+    """Read as a whole-name match, the strictest way the trigger can be read."""
+    hooks = json.loads(SETTINGS.read_text(encoding="utf-8"))["hooks"]["PreToolUse"]
+    matchers = [
+        entry["matcher"]
+        for entry in hooks
+        if any("test_integrity.py" in hook["command"] for hook in entry["hooks"])
+    ]
+    assert any(re.fullmatch(matcher, tool) for matcher in matchers), f"{tool} never reaches the guard"
 
 
 def test_asks_you_about_a_tool_it_does_not_know(project: Path) -> None:
