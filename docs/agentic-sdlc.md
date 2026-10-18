@@ -227,7 +227,7 @@ against the files, at the exact line, before it was accepted.
 
 | # | Finding | Outcome |
 | --- | --- | --- |
-| F1 | A fresh database had four free applications; a walk-through ran out | Fixed: 20 applications, 16 free (`41b07e9`, `81a47a0`) |
+| F1 | A fresh database had four free applications; a walk-through ran out | Fixed: 20 applications, 16 free (`41b07e9`, `81a47a0`); the release check seeded ten more, all pending, and kept 16 free |
 | F2 | Every `request-exists` said "revise it instead", wrong for approved requests and other managers | Fixed: the detail states only the fact (same commits) |
 | F3 | One request per application, for its whole life | Kept, defended in [ADR 0002](adr/0002-idempotent-create.md); production readiness item 4 |
 | F4 | A replay answers 201 with the request as it is now | Kept, explained in ADR 0002 |

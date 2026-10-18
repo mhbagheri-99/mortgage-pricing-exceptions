@@ -68,11 +68,12 @@ sets `DEMO_IDENTITY=true` (without it, every call is 401). The seeded users are 
 | `lead.fatima` | Both, to show that holding the reviewer role is not enough to approve your own request |
 | `svc.mortgage` | Mortgage process: the service account that reads approved discounts, through the API only |
 
-Applications **MA-1001 to MA-1020** exist. MA-1002 to MA-1005 already hold a request, one in each situation
-(pending, changed and pending, approved, declined), so **16 are free for new requests**: MA-1001 and MA-1006 to
-MA-1020. Each application takes one request for good; reset when they run out. The list of requests is the review
-queue: it shows pending requests unless you ask for `?status=APPROVED` or `?status=DECLINED`, and the page has a tab
-for each.
+Applications **MA-1001 to MA-1030** exist. MA-1002 to MA-1005 already hold a request, one in each situation
+(pending, changed and pending, approved, declined), and MA-1021 to MA-1030 hold ten more awaiting review, so **16
+are free for new requests**: MA-1001 and MA-1006 to MA-1020. Each application takes one request for good; reset
+when they run out. The list of requests is the review queue: it shows pending requests unless you ask for
+`?status=APPROVED` or `?status=DECLINED`, and the page has a tab for each. Twelve requests are pending on a fresh
+database, more than the page shows at once, so "Load more" pages through them.
 
 ## Test it
 

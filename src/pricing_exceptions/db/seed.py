@@ -3,13 +3,13 @@
 The container runs it on every start (docs/architecture.md, "Operating and changing it safely"). Users and
 applications are inserted with ON CONFLICT DO NOTHING. Each seeded request goes through the create's own
 insert, and its history is written only when that insert lands, so a second run adds no events either. The
-four requests have fixed ids and times on 15 October 2026, one in each situation the demo and the example
-of an approved discount need.
+requests have fixed ids and times on 15 October 2026: four, one in each situation the demo and the example of
+an approved discount need, and ten more awaiting review, so the queue spans more than one page.
 
     python -m pricing_exceptions.db.seed     # uses DATABASE_URL
 """
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from sqlalchemy import Engine, text
@@ -35,8 +35,9 @@ USERS = [
     ),
     ("svc.mortgage", "Mortgage application process (a service)", ["MORTGAGE_PROCESS"]),
 ]
-# Twenty, so a live walk-through has sixteen free: each application takes one request for good.
-APPLICATIONS = [(f"MA-{n}", f"Fictional mortgage application {n}") for n in range(1001, 1021)]
+# Thirty. Fourteen hold a seeded request (MA-1002 to MA-1005 and MA-1021 to MA-1030), so a live walk-through
+# has sixteen free: each application takes one request for good.
+APPLICATIONS = [(f"MA-{n}", f"Fictional mortgage application {n}") for n in range(1001, 1031)]
 
 
 def seeded_id(application_number: int) -> UUID:
@@ -112,6 +113,62 @@ REQUESTS: list[tuple[PricingExceptionRequest, list[RequestEvent]]] = [
             ),
         ],
     ),
+]
+
+
+CHANGE_AFTER = timedelta(minutes=20)
+
+
+def pending(
+    number: int, requester: str, at: datetime, *terms: tuple[int, str]
+) -> tuple[PricingExceptionRequest, list[RequestEvent]]:
+    """A request awaiting review: submitted with the first terms, then changed once for each later pair,
+    twenty minutes apart. The row holds the last terms; its created_at is the submission's time."""
+    request_id = seeded_id(number)
+    history = [
+        RequestEvent(
+            request_id,
+            T.SUBMITTED if revision == 1 else T.AMENDED,
+            revision,
+            requester,
+            at + (revision - 1) * CHANGE_AFTER,
+            bps,
+            reason,
+        )
+        for revision, (bps, reason) in enumerate(terms, start=1)
+    ]
+    bps, reason = terms[-1]
+    request = PricingExceptionRequest(
+        request_id, f"MA-{number}", requester, Status.PENDING_REVIEW, len(terms), bps, reason, at
+    )
+    return request, history
+
+
+# The rest of the review queue: twelve pending requests in all, more than the page shows at its default of
+# ten, so "Load more" appears without changing the page size. They come after the four above, oldest first.
+REQUESTS += [
+    pending(1021, "rm.anna", on_15_october(12, 0), (25, "Remortgage at the end of a fixed term elsewhere")),
+    pending(1022, "rm.bram", on_15_october(12, 20), (10, "Low loan-to-value: half the property's value")),
+    pending(1023, "rm.anna", on_15_october(12, 45), (30, COMPETING)),
+    pending(
+        1024,
+        "rm.bram",
+        on_15_october(13, 5),
+        (10, "Self-employed borrower with three years of accounts"),
+        (15, "Self-employed borrower; accounts checked, matching the broker's quote"),
+    ),
+    pending(1025, "rm.anna", on_15_october(13, 30), (20, "Energy-efficient home after a full renovation")),
+    pending(1026, "rm.bram", on_15_october(14, 0), (35, "Moving all household banking to us")),
+    pending(1027, "rm.anna", on_15_october(14, 25), (15, FIRST_HOME)),
+    pending(
+        1028,
+        "rm.anna",
+        on_15_october(14, 50),
+        (25, "Customer for twenty years, renewing at the end of the term"),
+        (20, "Customer for twenty years; renewal terms agreed with the borrower"),
+    ),
+    pending(1029, "rm.bram", on_15_october(15, 15), (20, "Salary paid into an account with us")),
+    pending(1030, "rm.bram", on_15_october(15, 40), (30, "Bridging the gap to a published competitor rate")),
 ]
 
 

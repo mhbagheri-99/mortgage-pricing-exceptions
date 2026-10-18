@@ -70,7 +70,7 @@ history event. The diagram and the reasons are in [ADR 0001](adr/0001-revisioned
 | Table | Holds |
 | --- | --- |
 | `users` | id, display name, roles (RELATIONSHIP_MANAGER, REVIEWER, MORTGAGE_PROCESS); seeded |
-| `mortgage_applications` | id and a fictional label; seeded (MA-1001 to MA-1020) |
+| `mortgage_applications` | id and a fictional label; seeded (MA-1001 to MA-1030) |
 | `pricing_exception_requests` | One row per request: application, requester, status, current revision and terms, the decision on the current revision (who, when, comment), `created_at` |
 | `pricing_exception_events` | The history: one row per change, append-only, with the actor, the UTC time, the revision and the terms it applied to, and the comment of a decision |
 
@@ -263,7 +263,7 @@ script, which the policy would block.
 
 Tests run on a real PostgreSQL 18 in a throwaway container (testcontainers), never on SQLite or mocks, because the
 guarantees are database behaviour. Before every integration test the requests and their history are emptied and
-the seed runs again, so each test starts from the seeded data: 6 users, 20 applications and 4 requests.
+the seed runs again, so each test starts from the seeded data: 6 users, 30 applications and 14 requests.
 
 | Level | What it proves | Functions (cases) |
 | --- | --- | --- |
