@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Annotated, Literal, Self
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, StrictInt, StrictStr, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
 from pricing_exceptions.domain.model import (
     EventType,
@@ -36,6 +36,34 @@ class CreateRequest(BaseModel):
     application_id: ApplicationId
     discount_bps: StrictInt
     reason: StrictStr
+
+
+# The revision the caller saw. Below 1 can never exist, so it is wrong on its own: 422. Any other revision
+# that is not the current one is 409 stale-revision (P4 decision 2).
+Revision = Annotated[StrictInt, Field(ge=1)]
+
+
+class ReviseRequest(BaseModel):
+    """What the requester sends to change the terms: the revision they saw and both terms, so every revision
+    is complete on its own (design doc 5.3). The application id is not here: another application is another
+    request (D2)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: Revision
+    discount_bps: StrictInt
+    reason: StrictStr
+
+
+class DecideRequest(BaseModel):
+    """What a reviewer sends: the revision they reviewed, the outcome, and a comment, which a decline needs
+    (design doc 5.3)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    revision: Revision
+    outcome: Outcome
+    comment: StrictStr | None = None
 
 
 class DecisionOut(BaseModel):

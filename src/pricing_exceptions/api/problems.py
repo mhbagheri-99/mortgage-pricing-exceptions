@@ -124,6 +124,8 @@ def install(app: FastAPI) -> None:
             extensions["errors"] = [
                 {"pointer": f"#/{field}", "detail": why} for field, why in exc.problems.items()
             ]
+        if isinstance(exc, StaleRevision):
+            extensions["sent_revision"] = exc.sent_revision  # the current one is in `current` (5.3)
         if isinstance(exc, Conflict):
             if exc.current is None:
                 raise RuntimeError("every 409 must carry the current request (design doc 5.3)") from exc
