@@ -11,7 +11,7 @@ from pricing_exceptions.db.engine import ping
 from pricing_exceptions.db.requests import Position as Position  # re-exported for the api's cursor
 from pricing_exceptions.domain import rules
 from pricing_exceptions.domain.errors import NotFound
-from pricing_exceptions.domain.model import Actor, PricingExceptionRequest, RequestRecord, Status
+from pricing_exceptions.domain.model import Actor, PricingExceptionRequest, RequestRecord, Status, User
 
 
 def database_ok(engine: Engine) -> bool:
@@ -27,6 +27,13 @@ def get_actor(engine: Engine, user_id: str) -> Actor | None:
     """The seeded user with this id and their roles, or None (design doc D6)."""
     with engine.connect() as conn:
         return reference.find_actor(conn, user_id)
+
+
+def list_users(engine: Engine) -> list[User]:
+    """Every seeded user, by id. Only the demo's acting-as switcher asks, and only with the demo identity on
+    (design doc 5.1)."""
+    with engine.connect() as conn:
+        return reference.list_users(conn)
 
 
 def get_request(engine: Engine, actor: Actor, request_id: UUID) -> RequestRecord:

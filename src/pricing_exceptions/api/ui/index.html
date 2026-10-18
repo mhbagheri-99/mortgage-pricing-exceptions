@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Pricing exceptions</title>
+  <link rel="stylesheet" href="app.css">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <p class="demo-strip"><strong>Demo identity.</strong> Anyone can act as any seeded user. It stands in for real
+    sign-in and is never for production.</p>
+
+  <header class="appbar">
+    <h1>Pricing exceptions</h1>
+    <label class="acting-as">Acting as
+      <select id="acting-as">
+        <option value="">Choose a user</option>
+      </select>
+    </label>
+  </header>
+  <p id="identity-note" class="identity-note" role="alert" hidden></p>
+
+  <div class="workspace">
+    <nav class="queue" aria-labelledby="queue-title">
+      <div class="queue-head">
+        <h2 id="queue-title">Requests</h2>
+        <button type="button" id="new-request" class="primary">New request</button>
+      </div>
+      <div class="status-tabs" role="group" aria-label="Show requests that are">
+        <button type="button" data-status="PENDING_REVIEW" aria-pressed="true">Pending review</button>
+        <button type="button" data-status="APPROVED" aria-pressed="false">Approved</button>
+        <button type="button" data-status="DECLINED" aria-pressed="false">Declined</button>
+      </div>
+      <div id="list-problem"></div>
+      <ul id="rows" class="rows"></ul>
+      <p id="list-empty" class="empty" hidden></p>
+      <div class="queue-foot">
+        <button type="button" id="load-more" hidden>Load more</button>
+        <label class="per-page">Per page
+          <select id="limit">
+            <option value="2">2</option>
+            <option value="10" selected>10</option>
+            <option value="50">50</option>
+          </select>
+        </label>
+      </div>
+    </nav>
+
+    <div id="detail" class="detail">
+      <main id="case" class="case" aria-labelledby="case-title"></main>
+      <aside id="actions" class="actions" aria-label="Actions on this request" hidden></aside>
+    </div>
+  </div>
+
+  <dialog id="create-dialog" aria-labelledby="create-title">
+    <form id="create-form" novalidate>
+      <h2 id="create-title">New request</h2>
+      <p class="hint">For an existing mortgage application. Sending the same request again is safe: you get back the
+        one already created, never a second one.</p>
+      <label>Application id
+        <input name="application_id" placeholder="MA-1001" autocomplete="off" spellcheck="false">
+      </label>
+      <label>Discount in basis points
+        <input name="discount_bps" inputmode="numeric" placeholder="25" autocomplete="off">
+      </label>
+      <label>Reason
+        <textarea name="reason" rows="4" placeholder="Retention: competitor offer 25 bps below standard"></textarea>
+      </label>
+      <div id="create-result" aria-live="polite"></div>
+      <div class="dialog-buttons">
+        <button type="button" id="create-cancel">Cancel</button>
+        <button type="submit" class="primary">Create request</button>
+      </div>
+    </form>
+  </dialog>
+</body>
+</html>

@@ -17,7 +17,9 @@ from pricing_exceptions.domain.model import (
     PricingExceptionRequest,
     RequestEvent,
     RequestRecord,
+    Role,
     Status,
+    User,
 )
 from pricing_exceptions.domain.rules import latest_decision
 
@@ -191,6 +193,18 @@ class ApprovedDiscount(BaseModel):
             approved_by=request.decision.decided_by,
             approved_at=request.decision.decided_at,
         )
+
+
+class DemoUser(BaseModel):
+    """One entry in the demo's acting-as switcher; the roles in a fixed order, so the list never shuffles."""
+
+    id: str
+    display_name: str
+    roles: list[Role]
+
+    @classmethod
+    def of(cls, user: User) -> Self:
+        return cls(id=user.id, display_name=user.display_name, roles=sorted(user.roles))
 
 
 class NoDiscount(BaseModel):
