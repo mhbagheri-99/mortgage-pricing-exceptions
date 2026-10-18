@@ -34,7 +34,8 @@ USERS = [
     ),
     ("svc.mortgage", "Mortgage application process (a service)", ["MORTGAGE_PROCESS"]),
 ]
-APPLICATIONS = [(f"MA-{n}", f"Fictional mortgage application {n}") for n in range(1001, 1009)]
+# Twenty, so a live walk-through has sixteen free: each application takes one request for good.
+APPLICATIONS = [(f"MA-{n}", f"Fictional mortgage application {n}") for n in range(1001, 1021)]
 
 
 def seeded_id(application_number: int) -> UUID:

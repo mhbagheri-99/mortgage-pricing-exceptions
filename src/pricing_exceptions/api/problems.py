@@ -17,7 +17,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
-from pricing_exceptions.api.schemas import RequestCurrent
+from pricing_exceptions.api.schemas import (
+    PATTERN_RULES,
+    ConflictProblem,
+    Problem,
+    RequestCurrent,
+    ValidationProblem,
+)
 from pricing_exceptions.domain.errors import (
     ApplicationNotFound,
     Conflict,
@@ -33,8 +39,48 @@ from pricing_exceptions.domain.errors import (
 from pricing_exceptions.service import errors as database
 
 PROBLEM_TYPES = "https://pricing-exceptions.example/problems/"  # .example is reserved; it never resolves
+PROBLEM_JSON = "application/problem+json"
 
 log = logging.getLogger(__name__)
+
+TEXT = {"type": "string"}
+RETRY_AFTER = {"Retry-After": {"description": "Seconds to wait before trying again", "schema": TEXT}}
+# How each error is described in /openapi.json: the model of its body and the headers that come with it.
+_DESCRIBED: dict[int, dict[str, Any]] = {
+    400: {"model": Problem, "description": "The body is not valid JSON"},
+    401: {
+        "model": Problem,
+        "description": "Who is calling is unknown, or the demo identity is off",
+        "headers": {"WWW-Authenticate": {"description": "How to identify the caller", "schema": TEXT}},
+    },
+    403: {"model": Problem, "description": "The caller may not do this: their role, or four-eyes"},
+    404: {"model": Problem, "description": "No such request or mortgage application"},
+    409: {"model": ConflictProblem, "description": "It conflicts with the request as it is now"},
+    422: {"model": ValidationProblem, "description": "The input is wrong on its own"},
+    503: {
+        "model": Problem,
+        "description": "The database is busy or unavailable; nothing was changed",
+        "headers": RETRY_AFTER,
+    },
+}
+
+
+def described(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """The error answers a route declares, so its description lists every status it can answer."""
+    return {status: _DESCRIBED[status] for status in statuses}
+
+
+def as_problem_json(description: dict[str, Any]) -> None:
+    """FastAPI files every declared body under application/json; an error body is application/problem+json,
+    which is what the handlers below really send. Corrected once, when the description is first built."""
+    for operations in description["paths"].values():
+        for operation in operations.values():
+            for answer in operation["responses"].values():
+                content = answer.get("content", {})
+                schema = content.get("application/json", {}).get("schema", {})
+                if str(schema.get("$ref", "")).endswith("Problem"):
+                    content[PROBLEM_JSON] = content.pop("application/json")
+
 
 # Each domain error's status and title. NotFound has no type of its own in the catalogue: `about:blank`.
 DOMAIN_PROBLEMS: dict[type[DomainError], tuple[int, str]] = {
@@ -68,7 +114,7 @@ def problem(
     body.update(extensions or {})
     if request.method == "POST" and 400 <= status < 500:
         log_refused_write(request, code or "about:blank", status, request_id)
-    return JSONResponse(body, status_code=status, headers=headers, media_type="application/problem+json")
+    return JSONResponse(body, status_code=status, headers=headers, media_type=PROBLEM_JSON)
 
 
 def log_refused_write(request: Request, problem_type: str, status: int, request_id: UUID | None) -> None:
@@ -161,10 +207,13 @@ def _field_error(error: Any) -> dict[str, str]:
     """A Pydantic error as RFC 9457's example shows it: a JSON pointer into the body, or the parameter's
     name. Only Pydantic's message is kept, never the input, which can hold reason text."""
     where, *path = error["loc"]
+    detail = str(error["msg"])
+    if error["type"] == "string_pattern_mismatch":  # the rule in words, not the regex it is checked with
+        detail = PATTERN_RULES.get(error.get("ctx", {}).get("pattern"), detail)
     if where == "body":
         pointer = "#" + "".join("/" + str(part).replace("~", "~0").replace("/", "~1") for part in path)
-        return {"pointer": pointer, "detail": error["msg"]}
-    return {"parameter" if where in ("query", "path") else str(where): str(path[0]), "detail": error["msg"]}
+        return {"pointer": pointer, "detail": detail}
+    return {"parameter" if where in ("query", "path") else str(where): str(path[0]), "detail": detail}
 
 
 def _action(request: Request) -> str:

@@ -44,7 +44,9 @@ def submit(engine: Engine, clock: Clock, actor: Actor, application_id: str, term
             if not rules.is_retry(existing, actor, terms):
                 raise RequestExists(current=existing)  # rolls back; nothing was written
             created = Created(existing, replayed=True)
-    if not created.replayed:  # logged after the commit, so the line never claims a change that rolled back
+    if created.replayed:  # no state change, but operators see that upstream systems retry
+        log.info("replayed create: request=%s actor=%s", created.record.request.id, actor.id)
+    else:  # logged after the commit, so the line never claims a change that rolled back
         _log_change(event)
     return created
 
