@@ -110,6 +110,11 @@ def amended_to_30() -> RequestRecord:
     return RequestRecord(amended, (*record.history, amendment))
 
 
+def never_submitted() -> RequestRecord:
+    """A record whose history has no SUBMITTED event: nothing says what the first create sent."""
+    return RequestRecord(submitted_by_anna().request, ())
+
+
 @pytest.mark.req(id="FR-6")
 @pytest.mark.parametrize(
     ("existing", "user", "terms", "retry"),
@@ -122,6 +127,7 @@ def amended_to_30() -> RequestRecord:
             amended_to_30, "rm.anna", Terms(30, NEW_REASON), False, id="the current terms, not the first"
         ),
         pytest.param(submitted_by_anna, "rm.anna", Terms(30, REASON), False, id="another discount"),
+        pytest.param(never_submitted, "rm.anna", Terms(25, REASON), False, id="no SUBMITTED event to repeat"),
         pytest.param(
             submitted_by_anna, "rm.anna", Terms(25, REASON + " "), False, id="a reason one space longer"
         ),

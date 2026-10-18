@@ -24,6 +24,7 @@ from pricing_exceptions.domain.rules import (
     collection_permissions,
     decide,
     permissions,
+    require_staff,
     revise,
     submit,
 )
@@ -160,3 +161,20 @@ def test_the_create_permission_never_disagrees_with_submit(user: str) -> None:
         with pytest.raises(type(refusal)) as raised:
             attempt()
         assert str(raised.value) == str(refusal)
+
+
+# The words of the two refusals the tests above never read. The page shows them as the reason, so they are
+# pinned exactly (a mutation run found them untested).
+@pytest.mark.req(id="N5")
+def test_a_refused_create_says_why() -> None:
+    with pytest.raises(Forbidden) as raised:
+        submit(USERS["rv.dana"], "MA-1007", Terms(25, "New request"), REQUEST_ID, NOW)
+    assert str(raised.value) == "Only a relationship manager can create a request."
+
+
+@pytest.mark.req(id="N5")
+def test_a_refused_read_says_why() -> None:
+    """The mortgage process reads only approved discounts, never the requests themselves."""
+    with pytest.raises(Forbidden) as raised:
+        require_staff(USERS["svc.mortgage"])
+    assert str(raised.value) == "Only relationship managers and reviewers can read requests."

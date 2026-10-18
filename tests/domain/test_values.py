@@ -54,6 +54,43 @@ def test_terms_bounds(discount: int, reason: str, broken: set[str]) -> None:
     assert broken_fields(lambda: Terms(discount, reason)) == broken
 
 
+@pytest.mark.req(id="FR-1")
+@pytest.mark.parametrize(
+    ("discount", "reason", "problems"),
+    [
+        pytest.param(
+            0,
+            REASON,
+            {"discount_bps": "must be a whole number from 1 to 100 basis points"},
+            id="a discount out of range",
+        ),
+        pytest.param(25, "  ", {"reason": "must not be blank"}, id="a blank reason"),
+        pytest.param(25, "Retention" + chr(0), {"reason": "must not contain the NUL character"}, id="a NUL"),
+        pytest.param(
+            25, "Retention " + chr(0xD800), {"reason": "must be valid Unicode text"}, id="a lone surrogate"
+        ),
+        pytest.param(
+            25, "x" * 1001, {"reason": "must be at most 1000 characters"}, id="a reason that is too long"
+        ),
+        pytest.param(
+            0,
+            "  ",
+            {
+                "discount_bps": "must be a whole number from 1 to 100 basis points",
+                "reason": "must not be blank",
+            },
+            id="both broken, both explained",
+        ),
+    ],
+)
+def test_terms_say_what_is_wrong(discount: int, reason: str, problems: dict[str, str]) -> None:
+    """The 422 lists each broken field with its reason in words, and the page shows those words, so they are
+    pinned exactly (a mutation run found them untested)."""
+    with pytest.raises(ValidationFailed) as failed:
+        Terms(discount, reason)
+    assert failed.value.problems == problems
+
+
 @pytest.mark.req(id="FR-3")
 @pytest.mark.parametrize(
     ("outcome", "comment", "broken"),
@@ -75,6 +112,21 @@ def test_terms_bounds(discount: int, reason: str, broken: set[str]) -> None:
 def test_comment_rules(outcome: Outcome, comment: str | None, broken: set[str]) -> None:
     """A decline needs a comment; any comment that is sent follows the same text rules as the reason."""
     assert broken_fields(lambda: Verdict(outcome, comment)) == broken
+
+
+@pytest.mark.req(id="FR-3")
+@pytest.mark.parametrize(
+    ("outcome", "comment", "problems"),
+    [
+        pytest.param(Outcome.DECLINED, None, {"comment": "is required to decline"}, id="decline, no comment"),
+        pytest.param(Outcome.APPROVED, "  ", {"comment": "must not be blank"}, id="approve, blank comment"),
+    ],
+)
+def test_verdict_says_what_is_wrong(outcome: Outcome, comment: str | None, problems: dict[str, str]) -> None:
+    """Like the terms, the words of each refusal are pinned exactly."""
+    with pytest.raises(ValidationFailed) as failed:
+        Verdict(outcome, comment)
+    assert failed.value.problems == problems
 
 
 @pytest.mark.req(id="FR-1")
