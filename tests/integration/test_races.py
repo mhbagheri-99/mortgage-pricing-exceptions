@@ -16,6 +16,7 @@ import threading
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import ExitStack
 from datetime import UTC, datetime
 from types import TracebackType
 from typing import Any, Self
@@ -50,6 +51,7 @@ from pricing_exceptions.domain.model import Actor, Outcome, PricingExceptionRequ
 SEEDED = (4, 7)  # requests and history events after the seed
 RESULT_SECONDS = 10  # how long a test waits for a thread's answer: past the 8 s budget, so N9 fails first
 BUDGET_SECONDS = 8  # N9: no call takes longer (design doc 7.3)
+POOL_CONNECTIONS = 15  # every connection the engine's pool can give: pool_size 5 plus max_overflow 10
 
 ANNA = Actor("rm.anna", frozenset({Role.RELATIONSHIP_MANAGER}))
 DANA = Actor("rv.dana", frozenset({Role.REVIEWER}))
@@ -317,6 +319,29 @@ def test_a_wait_past_lock_timeout_is_503(
     assert warning_lines(caplog) == [f"database unavailable: action={action} OperationalError sqlstate=55P03"]
     assert elapsed < BUDGET_SECONDS, f"took {elapsed:.1f} s"
     assert stored(engine) == SEEDED
+
+
+@pytest.mark.req(id="N8")
+@pytest.mark.req(id="N9")
+def test_a_wait_for_a_pooled_connection_past_pool_timeout_is_503(
+    client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Design doc 7.3: with every connection the pool can give in use, a call waits 3 s (pool_timeout) for
+    one, gives up with the pool's TimeoutError and answers 503 with Retry-After, well inside the 8 s budget.
+    The connections are held in an ExitStack, so a failing test still hands them all back to the next test."""
+    with ExitStack() as held:
+        for _ in range(POOL_CONNECTIONS):
+            held.enter_context(engine.connect())
+        caplog.clear()
+        caplog.set_level(logging.INFO, logger="pricing_exceptions")
+        started = time.monotonic()
+        response = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers=as_user("rv.dana"))
+        elapsed = time.monotonic() - started
+    assert response.status_code == 503
+    assert response.headers["Retry-After"] == "1"
+    assert response.json()["type"] == PROBLEMS + "temporarily-unavailable"
+    assert warning_lines(caplog) == ["database unavailable: action=get TimeoutError sqlstate=-"]
+    assert elapsed < BUDGET_SECONDS, f"took {elapsed:.1f} s"
 
 
 class StuckClock:

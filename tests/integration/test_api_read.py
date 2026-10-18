@@ -8,7 +8,19 @@ from datetime import datetime, timedelta
 from uuid import UUID, uuid4
 
 import pytest
-from calls import PROBLEMS, REQUESTS, TickingClock, as_user, create_body, seeded_id
+from calls import (
+    NEW_REASON,
+    PROBLEMS,
+    REQUESTS,
+    TickingClock,
+    as_user,
+    create_body,
+    decide_body,
+    decisions,
+    revise_body,
+    revisions,
+    seeded_id,
+)
 from fastapi.testclient import TestClient
 
 
@@ -120,6 +132,48 @@ def test_get_shows_the_status_every_revision_and_every_decision(client: TestClie
     response = client.get(f"{REQUESTS}/{seeded_id(number)}", headers=as_user("rv.dana"))
     assert response.status_code == 200
     assert response.json() == SEEDED[number]
+
+
+@pytest.mark.req(id="FR-5")
+def test_get_keeps_the_earlier_decision_after_a_later_one(client: TestClient) -> None:
+    """The brief's "previous decisions": MA-1005 was declined by rv.erik (seeded), rm.anna resubmits it, then
+    rv.dana approves revision 2. A GET shows the approval as the latest decision and keeps the decline in the
+    history, in order, each event with who and when. The test clock starts at 09:00:00 and ticks one second
+    per call, so the resubmission is at 09:00:00 and the approval at 09:00:01."""
+    resubmitted = client.post(revisions(1005), json=revise_body(1), headers=as_user("rm.anna"))
+    assert (resubmitted.status_code, resubmitted.json()["status"]) == (200, "PENDING_REVIEW")
+    approved = client.post(decisions(1005), json=decide_body(2), headers=as_user("rv.dana"))
+    assert (approved.status_code, approved.json()["status"]) == (200, "APPROVED")
+
+    response = client.get(f"{REQUESTS}/{seeded_id(1005)}", headers=as_user("rv.dana"))
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "id": seeded_id(1005),
+        "application_id": "MA-1005",
+        "status": "APPROVED",
+        "revision": 2,
+        "discount_bps": 30,
+        "reason": NEW_REASON,
+        "requested_by": "rm.anna",
+        "created_at": "2026-10-15T09:45:00Z",
+        "latest_decision": {
+            "outcome": "APPROVED",
+            "revision": 2,
+            "decided_by": "rv.dana",
+            "decided_at": "2026-10-18T09:00:01Z",
+            "comment": None,
+        },
+        "history": [
+            event("SUBMITTED", 1, "rm.anna", "2026-10-15T09:45:00Z", 40, CONSOLIDATING),
+            event(
+                "DECLINED", 1, "rv.erik", "2026-10-15T11:10:00Z", 40, CONSOLIDATING, "Up to 30 bps acceptable"
+            ),
+            event("RESUBMITTED", 2, "rm.anna", "2026-10-18T09:00:00Z", 30, NEW_REASON),
+            event("APPROVED", 2, "rv.dana", "2026-10-18T09:00:01Z", 30, NEW_REASON),
+        ],
+        "permissions": {"decide": not_in("APPROVED"), "revise": NOT_AN_RM},
+    }
 
 
 @pytest.mark.req(id="FR-5")
