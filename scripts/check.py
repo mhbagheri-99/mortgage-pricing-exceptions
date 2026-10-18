@@ -176,6 +176,11 @@ def find_lint_escapes(root: Path) -> list[str]:
 # pytest hooks that can drop, deselect or relabel tests before anyone sees them.
 HIDING_HOOKS = frozenset(
     {
+        "pytest_cmdline_main",
+        "pytest_load_initial_conftests",
+        "pytest_configure",
+        "pytest_sessionstart",
+        "pytest_collection",
         "pytest_ignore_collect",
         "pytest_collect_file",
         "pytest_pycollect_makeitem",

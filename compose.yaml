@@ -21,7 +21,8 @@ services:
       DATABASE_URL: postgresql+psycopg://pricing:pricing@db:5432/pricing
       DEMO_IDENTITY: "true" # the X-User-Id stand-in; every call is 401 without it
     ports:
-      - "8000:8000"
+      # Loopback only: with the demo identity on, anyone who can reach the port can act as any user.
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy

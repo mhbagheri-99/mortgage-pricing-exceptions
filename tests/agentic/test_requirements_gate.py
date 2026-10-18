@@ -125,8 +125,7 @@ def test_a_comment_that_silences_the_banned_api_rule_fails(tmp_path: Path) -> No
 def test_a_conftest_hook_that_can_hide_tests_fails(tmp_path: Path) -> None:
     (tmp_path / "tests" / "integration").mkdir(parents=True)
     (tmp_path / "tests" / "integration" / "conftest.py").write_text(
-        "def pytest_configure(config):\n    pass\n\n\n"
-        "def pytest_collection_modifyitems(config, items):\n    items[:] = []\n",
+        "def helper():\n    pass\n\n\ndef pytest_collection_modifyitems(config, items):\n    items[:] = []\n",
         encoding="utf-8",
     )
     hidden = "pytest_collection_modifyitems, which can hide tests from the run"
@@ -147,8 +146,13 @@ HIDING = {
     "plugins named in pytest_plugins": ("tests/conftest.py", "pytest_plugins = ['quiet_plugin']\n", "loads"),
     "a plugin registered at run time": (
         "tests/conftest.py",
-        "def pytest_configure(config):\n    config.pluginmanager.register(object())\n",
+        "def _register(config):\n    config.pluginmanager.register(object())\n",
         "loads",
+    ),
+    "a configure hook, which can change the run's options": (
+        "tests/conftest.py",
+        "def pytest_configure(config):\n    config.option.deselect = ['tests']\n",
+        "defines pytest_configure",
     ),
     "a hook in a test module": (
         "tests/test_mod.py",

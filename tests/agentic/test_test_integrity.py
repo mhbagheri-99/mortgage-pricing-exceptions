@@ -148,6 +148,16 @@ def test_asks_you_when_the_current_file_cannot_be_read(project: Path, broken: st
     assert json.loads(result.stdout)["hookSpecificOutput"]["permissionDecision"] == "ask"
 
 
+def test_asks_you_about_a_tool_it_does_not_know(project: Path) -> None:
+    path = project / "tests" / "test_sample.py"
+    edits = [{"old_string": "    assert True\n", "new_string": ""}]
+    result = run_guard(project, "MultiEdit", {"file_path": str(path), "edits": edits})
+    assert result.returncode == 0
+    decision = json.loads(result.stdout)["hookSpecificOutput"]
+    assert decision["permissionDecision"] == "ask"
+    assert "MultiEdit" in decision["permissionDecisionReason"]
+
+
 NORMAL = {
     "an added assert": ("tests/test_sample.py", "    assert True\n", "    assert True\n    assert 2 > 1\n"),
     "a renamed test": ("tests/test_sample.py", "def test_marked():", "def test_marked_again():"),

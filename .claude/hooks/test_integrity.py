@@ -82,11 +82,17 @@ def check(event: dict[str, object], project: Path) -> tuple[str, str, str] | Non
     """Return (decision, file, reason) for an edit that needs one, or None to let it through."""
     tool_name = str(event.get("tool_name", ""))
     tool_input = event.get("tool_input") or {}
-    if tool_name not in ("Edit", "Write") or not isinstance(tool_input, dict):
+    if not isinstance(tool_input, dict):
         return None
     file = test_file(project, str(tool_input.get("file_path", "")))
     if file is None:
         return None
+    if tool_name not in ("Edit", "Write"):  # fail closed on a file-editing tool this guard does not model
+        return (
+            "ask",
+            file,
+            f"The guard does not know the {tool_name} tool, so it cannot check this edit to a test.",
+        )
     try:
         texts = file_after(project / file, tool_name, tool_input)
     except UnicodeDecodeError:
