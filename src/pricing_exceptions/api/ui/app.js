@@ -218,6 +218,11 @@ function showCreate(permission) {
 // Oldest first, one page at a time; "Load more" follows next_cursor until it is null (design doc 5.6).
 async function loadList(more = false) {
   const mine = (latest.list += 1);
+  if (!more) {
+    // A fresh list: the old cursor belongs to the old list, so "Load more" waits for this answer.
+    state.nextCursor = null;
+    $("load-more").hidden = true;
+  }
   const params = new URLSearchParams({ status: state.status, limit: String(state.limit) });
   if (more && state.nextCursor) params.set("cursor", state.nextCursor);
   const result = await call("GET", `${REQUESTS}?${params}`);
