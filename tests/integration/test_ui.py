@@ -71,6 +71,8 @@ def test_the_page_is_served_with_its_security_policy(client: TestClient, path: s
     assert response.headers["Content-Type"].split(";")[0] == media_type
     assert response.headers["Content-Security-Policy"] == POLICY
     assert response.headers["X-Content-Type-Options"] == "nosniff"
+    # Revalidate on every load, so a browser never runs an old app.js against a newer API (P7 review).
+    assert response.headers["Cache-Control"] == "no-cache"
 
 
 @pytest.mark.parametrize(
