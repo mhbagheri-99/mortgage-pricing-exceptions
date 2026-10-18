@@ -133,6 +133,55 @@ def test_a_conftest_hook_that_can_hide_tests_fails(tmp_path: Path) -> None:
     assert check.find_collection_hooks(tmp_path) == [f"tests/integration/conftest.py defines {hidden}"]
 
 
+HIDING = {
+    "an async hook": (
+        "tests/conftest.py",
+        "async def pytest_collection_modifyitems(config, items):\n    items[:] = []\n",
+        "defines pytest_collection_modifyitems",
+    ),
+    "a hook assigned by name": (
+        "tests/conftest.py",
+        "def _drop(config, items):\n    items[:] = []\n\n\npytest_collection_modifyitems = _drop\n",
+        "defines pytest_collection_modifyitems",
+    ),
+    "plugins named in pytest_plugins": ("tests/conftest.py", "pytest_plugins = ['quiet_plugin']\n", "loads"),
+    "a plugin registered at run time": (
+        "tests/conftest.py",
+        "def pytest_configure(config):\n    config.pluginmanager.register(object())\n",
+        "loads",
+    ),
+    "a hook in a test module": (
+        "tests/test_mod.py",
+        "def pytest_ignore_collect(collection_path, config):\n    return True\n",
+        "defines pytest_ignore_collect",
+    ),
+}
+
+
+@pytest.mark.parametrize("case", HIDING)
+def test_every_way_of_adding_a_hiding_hook_fails(tmp_path: Path, case: str) -> None:
+    relative, source, expected = HIDING[case]
+    (tmp_path / relative).parent.mkdir(parents=True, exist_ok=True)
+    (tmp_path / relative).write_text(source, encoding="utf-8")
+    errors = check.find_collection_hooks(tmp_path)
+    assert len(errors) == 1
+    assert expected in errors[0]
+
+
+def test_the_test_run_reads_the_report_not_the_console(tmp_path: Path) -> None:
+    (tmp_path / "tests").mkdir()
+    (tmp_path / "tests" / "test_x.py").write_text(
+        "import atexit\nimport sys\n\nimport pytest\n\n"
+        "atexit.register(lambda: print('noise after the summary', file=sys.stderr))\n\n\n"
+        "def test_runs():\n    assert True\n\n\n"
+        "def test_dodges_the_static_scan():\n    getattr(pytest, 'sk' + 'ip')('later')\n",
+        encoding="utf-8",
+    )
+    ok, output = check.run_tests(tmp_path, ["tests"])
+    assert not ok
+    assert "every test must run" in output.lower()
+
+
 def test_the_test_run_fails_when_any_test_does_not_run(tmp_path: Path) -> None:
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_x.py").write_text(

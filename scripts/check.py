@@ -12,10 +12,12 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import textwrap
 import tokenize
 from collections.abc import Callable, Iterator
 from pathlib import Path
+from xml.etree import ElementTree
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / ".claude" / "hooks"))
@@ -185,18 +187,48 @@ HIDING_HOOKS = frozenset(
         "pytest_terminal_summary",
     }
 )
-NOT_RUN = re.compile(r"(\d+) (skipped|xfailed|xpassed|deselected)")
+DESELECTED = re.compile(r"\b(\d+) deselected\b")
+HIDES = "which can hide tests from the run"
+
+
+def _is_plugin_registration(node: ast.AST) -> bool:
+    """`config.pluginmanager.register(...)` or `pluginmanager.register(...)`."""
+    if not (
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "register"
+    ):
+        return False
+    owner = node.func.value
+    return (isinstance(owner, ast.Attribute) and owner.attr == "pluginmanager") or (
+        isinstance(owner, ast.Name) and owner.id == "pluginmanager"
+    )
 
 
 def find_collection_hooks(root: Path) -> list[str]:
+    """Any conftest.py, and any file under tests/, that defines a hiding hook or loads a plugin."""
     errors = []
     for path in walk(root):
-        if path.name != "conftest.py":
-            continue
         relative = path.relative_to(root).as_posix()
-        for node in ast.parse(path.read_text(encoding="utf-8")).body:
-            if isinstance(node, ast.FunctionDef) and node.name in HIDING_HOOKS:
-                errors.append(f"{relative} defines {node.name}, which can hide tests from the run")
+        if path.suffix != ".py" or not (path.name == "conftest.py" or relative.startswith("tests/")):
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue  # ruff reports a file that does not parse
+        for node in ast.walk(tree):
+            names: list[str] = []
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
+                names = [node.name]
+            elif isinstance(node, ast.Assign):
+                names = [target.id for target in node.targets if isinstance(target, ast.Name)]
+            elif isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name):
+                names = [node.target.id]
+            for name in names:
+                if name in HIDING_HOOKS:
+                    errors.append(f"{relative} defines {name}, {HIDES}")
+                elif name == "pytest_plugins":
+                    errors.append(f"{relative} loads pytest plugins, {HIDES}")
+            if _is_plugin_registration(node):
+                errors.append(f"{relative} loads a pytest plugin at run time, {HIDES}")
     return errors
 
 
@@ -208,14 +240,32 @@ def tool(*command: str, cwd: Path = ROOT) -> tuple[bool, str]:
 
 
 def run_tests(root: Path, test_dirs: list[str]) -> tuple[bool, str]:
-    """Run the tests, and fail when any of them did not run: this catches a skip however it was written."""
-    ok, output = tool(sys.executable, "-m", "pytest", "-q", "-rsxX", *test_dirs, cwd=root)
-    summary = output.splitlines()[-1] if output else ""
-    not_run = NOT_RUN.findall(summary)
-    if ok and not_run:
-        counts = ", ".join(f"{n} {kind}" for n, kind in not_run)
-        return False, f"{output}\nEvery test must run, but {counts}."
-    return ok, output
+    """Run the tests, and fail when any of them did not run: this catches a skip however it was written.
+
+    The counts come from pytest's JUnit XML report, not the console, so stray output cannot hide them.
+    """
+    with tempfile.TemporaryDirectory() as scratch:
+        report = Path(scratch) / "report.xml"
+        ok, output = tool(
+            sys.executable, "-m", "pytest", "-q", "-rsxX", f"--junitxml={report}", *test_dirs, cwd=root
+        )
+        if not ok:
+            return False, output
+        if not report.exists():
+            return False, f"{output}\nThe test run wrote no report, so its result cannot be trusted."
+        top = ElementTree.parse(report).getroot()  # noqa: S314 (our own pytest run wrote this file)
+    suites = [top] if top.tag == "testsuite" else list(top.iter("testsuite"))
+    ran = sum(int(suite.get("tests", "0")) for suite in suites)
+    skipped = sum(int(suite.get("skipped", "0")) for suite in suites)  # xfailed tests count as skipped
+    deselected = sum(int(n) for n in DESELECTED.findall(output))
+    if ran == 0:
+        return False, f"{output}\nNo test ran."
+    if skipped or deselected:
+        return (
+            False,
+            f"{output}\nEvery test must run, but {skipped} skipped or xfailed, {deselected} deselected.",
+        )
+    return True, output
 
 
 def listed(errors: list[str]) -> tuple[bool, str]:
