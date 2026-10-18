@@ -7,14 +7,31 @@ would have let the requirement gate pass without any create test (P2 review find
 """
 
 from collections.abc import Callable
+from enum import StrEnum
 
 import pytest
 
 from pricing_exceptions.domain.errors import ValidationFailed
-from pricing_exceptions.domain.model import Outcome
-from pricing_exceptions.domain.rules import Terms, Verdict
+from pricing_exceptions.domain.model import EventType, Outcome, Role, Status
+from pricing_exceptions.domain.rules import Action, Terms, Verdict
 
 REASON = "Retention: competitor offer 25 bps below standard"
+
+# The text of every member, in order. The API sends it, clients match it, and the migration's CHECK lists and
+# the seed store it, so a renamed value breaks the database and every client at once. Mutation testing cannot
+# change module-level values, so this test pins them, without needing a database.
+WIRE_TEXT: list[tuple[type[StrEnum], list[str]]] = [
+    (Role, ["RELATIONSHIP_MANAGER", "REVIEWER", "MORTGAGE_PROCESS"]),
+    (Status, ["PENDING_REVIEW", "APPROVED", "DECLINED"]),
+    (Outcome, ["APPROVED", "DECLINED"]),
+    (EventType, ["SUBMITTED", "AMENDED", "RESUBMITTED", "APPROVED", "DECLINED"]),
+    (Action, ["create", "decide", "revise"]),
+]
+
+
+@pytest.mark.parametrize(("enum", "texts"), WIRE_TEXT, ids=[enum.__name__ for enum, _ in WIRE_TEXT])
+def test_every_enum_member_keeps_its_wire_text(enum: type[StrEnum], texts: list[str]) -> None:
+    assert [member.value for member in enum] == texts
 
 
 def broken_fields(build: Callable[[], object]) -> set[str]:
