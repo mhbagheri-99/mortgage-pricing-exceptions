@@ -53,6 +53,15 @@ class Actor:
 
 
 @dataclass(frozen=True, slots=True)
+class User:
+    """A user as the demo's acting-as switcher lists them: id, display name and roles (design doc 4.1)."""
+
+    id: str
+    display_name: str
+    roles: frozenset[Role]
+
+
+@dataclass(frozen=True, slots=True)
 class Decision:
     """The decision on the current revision. Its outcome is the request's status (design doc 4.1)."""
 

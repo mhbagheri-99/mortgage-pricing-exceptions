@@ -67,7 +67,7 @@ def test_every_409_carries_current(
     assert problem["title"]
     assert problem["detail"]
     current = client.get(f"{REQUESTS}/{seeded_id(number)}", headers=as_user("rv.dana")).json()
-    del current["history"]
+    del current["history"], current["permissions"]  # a 409's current is the request alone (5.3, P7)
     assert problem["current"] == current
 
 

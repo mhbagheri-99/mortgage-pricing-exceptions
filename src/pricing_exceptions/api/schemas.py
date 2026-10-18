@@ -11,15 +11,19 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, StringConstraints
 
+from pricing_exceptions.domain.errors import DomainError
 from pricing_exceptions.domain.model import (
+    Actor,
     EventType,
     Outcome,
     PricingExceptionRequest,
     RequestEvent,
     RequestRecord,
+    Role,
     Status,
+    User,
 )
-from pricing_exceptions.domain.rules import latest_decision
+from pricing_exceptions.domain.rules import Action, collection_permissions, latest_decision, permissions
 
 # 1 to 64 letters, digits, dot, underscore or hyphen, checked before any lookup: a NUL (%00) or a newline
 # never reaches PostgreSQL, whose text type cannot hold a NUL. The pattern runs on Rust's regex engine, where
@@ -147,24 +151,58 @@ class RequestCurrent(RequestSummary):
         )
 
 
-class RequestOut(RequestCurrent):
-    """The request with its whole history, oldest event first: the body of GET, create and its replay."""
+class PermissionOut(BaseModel):
+    """Whether the caller may take one action now. If not, `problem` is the problem code the action would be
+    refused with (the last part of the refusal's `type`, such as `four-eyes-violation`) and `detail` its
+    reason, so a client can say why instead of offering a button that can only fail (P7)."""
 
-    history: list[EventOut]
+    allowed: bool
+    problem: str | None
+    detail: str | None
 
     @classmethod
-    def of_record(cls, record: RequestRecord) -> Self:
+    def of(cls, refusal: DomainError | None) -> Self:
+        if refusal is None:
+            return cls(allowed=True, problem=None, detail=None)
+        return cls(allowed=False, problem=refusal.code, detail=str(refusal))
+
+    @classmethod
+    def each(cls, refusals: dict[Action, DomainError | None]) -> dict[Action, Self]:
+        return {action: cls.of(refusal) for action, refusal in refusals.items()}
+
+
+class RequestOut(RequestCurrent):
+    """The request with its whole history, oldest event first: the body of GET, create and its replay,
+    revise and decide. `permissions` is what the caller may do to it now; the domain's own checks decide
+    it, and the actions still run them when tried."""
+
+    history: list[EventOut]
+    permissions: dict[Action, PermissionOut]
+
+    @classmethod
+    def for_caller(cls, record: RequestRecord, caller: Actor) -> Self:
         return cls(
             **RequestCurrent.of_record(record).model_dump(),
             history=[EventOut.of(event) for event in record.history],
+            permissions=PermissionOut.each(permissions(record.request, caller)),
         )
 
 
 class PageOut(BaseModel):
-    """One page of the list. Follow `next_cursor` until it is null to see every request (design doc 5.6)."""
+    """One page of the list. Follow `next_cursor` until it is null to see every request (design doc 5.6).
+    `permissions` is what the caller may do with the collection: create a request (P7)."""
 
     items: list[RequestSummary]
     next_cursor: str | None
+    permissions: dict[Action, PermissionOut]
+
+    @classmethod
+    def for_caller(cls, items: list[PricingExceptionRequest], next_cursor: str | None, caller: Actor) -> Self:
+        return cls(
+            items=[RequestSummary.of(item) for item in items],
+            next_cursor=next_cursor,
+            permissions=PermissionOut.each(collection_permissions(caller)),
+        )
 
 
 class ApprovedDiscount(BaseModel):
@@ -191,6 +229,18 @@ class ApprovedDiscount(BaseModel):
             approved_by=request.decision.decided_by,
             approved_at=request.decision.decided_at,
         )
+
+
+class DemoUser(BaseModel):
+    """One entry in the demo's acting-as switcher; the roles in a fixed order, so the list never shuffles."""
+
+    id: str
+    display_name: str
+    roles: list[Role]
+
+    @classmethod
+    def of(cls, user: User) -> Self:
+        return cls(id=user.id, display_name=user.display_name, roles=sorted(user.roles))
 
 
 class NoDiscount(BaseModel):

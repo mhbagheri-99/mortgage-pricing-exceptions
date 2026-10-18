@@ -3,11 +3,14 @@
 The limits are our assumptions (design doc 3.4): the brief sets none, so each is one constant here.
 """
 
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pricing_exceptions.domain.errors import (
+    DomainError,
     Forbidden,
     FourEyesViolation,
     InvalidState,
@@ -101,6 +104,15 @@ def check_role_to_revise(actor: Actor) -> None:
         raise Forbidden("Only a relationship manager can revise a request.")
 
 
+def check_decide(request: PricingExceptionRequest, actor: Actor) -> None:
+    """Whether the actor may decide the request as it is now: every guard of decide() but the revision."""
+    check_role_to_decide(actor)
+    if actor.id == request.requested_by:  # four-eyes: holding the reviewer role is not enough
+        raise FourEyesViolation("You cannot decide a request you made.")
+    if request.status is not Status.PENDING_REVIEW:  # approved is final; a declined one is resubmitted first
+        raise InvalidState(request.status, "decided")
+
+
 def decide(
     request: PricingExceptionRequest, actor: Actor, revision: int, verdict: Verdict, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
@@ -110,11 +122,7 @@ def decide(
     then the revision (409 stale-revision). The first that fails wins, so the same input always gets the same
     answer, even during a race. The 403 checks read only what never changes on a request.
     """
-    check_role_to_decide(actor)
-    if actor.id == request.requested_by:  # four-eyes: holding the reviewer role is not enough
-        raise FourEyesViolation("You cannot decide a request you made.")
-    if request.status is not Status.PENDING_REVIEW:  # approved is final; a declined one is resubmitted first
-        raise InvalidState(request.status, "decided")
+    check_decide(request, actor)
     if revision != request.revision:  # the decision binds to the revision the reviewer saw (N1)
         raise StaleRevision(sent=revision, current=request.revision)
     decided = replace(
@@ -139,6 +147,18 @@ def decide(
 _REVISION_EVENT = {Status.PENDING_REVIEW: EventType.AMENDED, Status.DECLINED: EventType.RESUBMITTED}
 
 
+def check_revise(request: PricingExceptionRequest, actor: Actor) -> EventType:
+    """Whether the actor may revise the request as it is now: every guard of revise() but the revision. It
+    returns the event a revision would write."""
+    check_role_to_revise(actor)
+    if actor.id != request.requested_by:  # one accountable maker: four-eyes compares against this person
+        raise Forbidden("Only the relationship manager who made the request can revise it.")
+    event_type = _REVISION_EVENT.get(request.status)
+    if event_type is None:  # approved, or any status that does not take a revision
+        raise InvalidState(request.status, "revised")
+    return event_type
+
+
 def revise(
     request: PricingExceptionRequest, actor: Actor, revision: int, terms: Terms, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
@@ -149,12 +169,7 @@ def revise(
     RESUBMITTED and goes back to pending, which clears the row's decision; the decline stays in history (D2,
     4.2). Both terms are replaced every time, and terms identical to the current ones are allowed (D2).
     """
-    check_role_to_revise(actor)
-    if actor.id != request.requested_by:  # one accountable maker: four-eyes compares against this person
-        raise Forbidden("Only the relationship manager who made the request can revise it.")
-    event_type = _REVISION_EVENT.get(request.status)
-    if event_type is None:  # approved, or any status that does not take a revision
-        raise InvalidState(request.status, "revised")
+    event_type = check_revise(request, actor)
     if revision != request.revision:  # the change applies to the revision the requester saw
         raise StaleRevision(sent=revision, current=request.revision)
     revised = replace(
@@ -177,6 +192,12 @@ def revise(
     return revised, event
 
 
+def check_submit(actor: Actor) -> None:
+    """Whether the actor may create a request: relationship managers only (403)."""
+    if Role.RELATIONSHIP_MANAGER not in actor.roles:
+        raise Forbidden("Only a relationship manager can create a request.")
+
+
 def submit(
     actor: Actor, application_id: str, terms: Terms, request_id: UUID, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
@@ -186,8 +207,7 @@ def submit(
     up; one request per application is the database's unique constraint, the one rule that spans rows
     (design doc 4.1).
     """
-    if Role.RELATIONSHIP_MANAGER not in actor.roles:
-        raise Forbidden("Only a relationship manager can create a request.")
+    check_submit(actor)
     request = PricingExceptionRequest(
         id=request_id,
         application_id=application_id,
@@ -227,13 +247,60 @@ def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
     )
 
 
+class Action(StrEnum):
+    """What a caller can do: create a request, or decide or revise an existing one."""
+
+    CREATE = "create"
+    DECIDE = "decide"
+    REVISE = "revise"
+
+
+_CHECKS: dict[Action, Callable[[PricingExceptionRequest, Actor], object]] = {
+    Action.DECIDE: check_decide,
+    Action.REVISE: check_revise,
+}
+
+
+def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, DomainError | None]:
+    """What the actor may do to the request as it is now: for each action, None when it would go through at
+    the current revision, else the error it would raise (P7, design doc 10.2).
+
+    It runs the actions' own checks, in their own order, so a permission and the action can never disagree.
+    The revision is left out because a caller acts on the current one; the action still checks it.
+    """
+    allowed: dict[Action, DomainError | None] = {}
+    for action, check in _CHECKS.items():
+        try:
+            check(request, actor)
+        except DomainError as refusal:
+            allowed[action] = refusal
+        else:
+            allowed[action] = None
+    return allowed
+
+
+def collection_permissions(actor: Actor) -> dict[Action, DomainError | None]:
+    """What the actor may do with the collection of requests: create one (P7). Like permissions(), it runs
+    the action's own check, so the answer and submit() can never disagree."""
+    try:
+        check_submit(actor)
+    except DomainError as refusal:
+        return {Action.CREATE: refusal}
+    return {Action.CREATE: None}
+
+
 _STAFF = frozenset({Role.RELATIONSHIP_MANAGER, Role.REVIEWER})
+
+
+def is_staff(roles: frozenset[Role]) -> bool:
+    """Staff are relationship managers and reviewers: the people who work with requests."""
+    return bool(roles & _STAFF)
 
 
 def require_staff(actor: Actor) -> None:
     """Reading requests is for staff: relationship managers and reviewers. The mortgage process reads only
     approved discounts (design doc 5.1)."""
-    if not actor.roles & _STAFF:
+    if not is_staff(actor.roles):
         raise Forbidden("Only relationship managers and reviewers can read requests.")
 
 

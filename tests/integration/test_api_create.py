@@ -48,8 +48,18 @@ def test_create_returns_the_new_request_with_its_history(client: TestClient, eng
                 "comment": None,
             }
         ],
+        # What rm.anna may do next (P7): revise her request; deciding needs the reviewer role.
+        "permissions": {
+            "decide": {
+                "allowed": False,
+                "problem": "forbidden",
+                "detail": "Only a reviewer can decide a request.",
+            },
+            "revise": {"allowed": True, "problem": None, "detail": None},
+        },
     }
-    assert client.get(response.headers["Location"], headers=as_user("rv.dana")).json() == body
+    # The same caller reads it back; permissions belong to the caller, so another user would see others.
+    assert client.get(response.headers["Location"], headers=as_user("rm.anna")).json() == body
     assert stored(engine) == (5, 8)
 
 
@@ -110,7 +120,8 @@ def test_a_late_retry_replays_the_request_as_it_is_now(
     assert response.headers["Location"] == f"{REQUESTS}/{seeded_id(number)}"
     body = response.json()
     assert (body["status"], body["revision"]) == (status, revision)
-    assert body == client.get(response.headers["Location"], headers=as_user("rv.dana")).json()
+    # Read back by the same caller: the permissions in the body are the caller's (P7).
+    assert body == client.get(response.headers["Location"], headers=as_user(user)).json()
     assert stored(engine) == SEEDED
 
 
@@ -132,7 +143,7 @@ def test_a_different_create_for_a_taken_application_is_409(
     problem = response.json()
     assert problem["type"] == PROBLEMS + "request-exists"
     current = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers=as_user("rv.dana")).json()
-    del current["history"]
+    del current["history"], current["permissions"]  # a 409's current is the request alone (5.3, P7)
     assert problem["current"] == current
     assert stored(engine) == SEEDED
 

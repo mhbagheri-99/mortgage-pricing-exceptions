@@ -26,6 +26,22 @@ def event(
     }
 
 
+ALLOWED = {"allowed": True, "problem": None, "detail": None}
+NOT_AN_RM = {
+    "allowed": False,
+    "problem": "forbidden",
+    "detail": "Only a relationship manager can revise a request.",
+}
+
+
+def not_in(status: str) -> dict[str, object]:
+    return {
+        "allowed": False,
+        "problem": "invalid-state",
+        "detail": f"A request that is {status} cannot be decided.",
+    }
+
+
 MOVING = "Long-standing customer moving their savings to us"
 CONFIRMED = "Savings transfer confirmed; matching the competing offer"
 FIRST_HOME = "First-time buyer with a large deposit"
@@ -45,6 +61,8 @@ SEEDED = {
             event("SUBMITTED", 1, "rm.bram", "2026-10-15T09:15:00Z", 15, MOVING),
             event("AMENDED", 2, "rm.bram", "2026-10-15T09:40:00Z", 20, CONFIRMED),
         ],
+        # What rv.dana, who reads these, may do (P7): decide this pending one, never revise.
+        "permissions": {"decide": ALLOWED, "revise": NOT_AN_RM},
     },
     1004: {
         "id": seeded_id(1004),
@@ -66,6 +84,7 @@ SEEDED = {
             event("SUBMITTED", 1, "rm.bram", "2026-10-15T09:30:00Z", 15, FIRST_HOME),
             event("APPROVED", 1, "rv.dana", "2026-10-15T10:02:44Z", 15, FIRST_HOME),
         ],
+        "permissions": {"decide": not_in("APPROVED"), "revise": NOT_AN_RM},
     },
     1005: {
         "id": seeded_id(1005),
@@ -89,6 +108,7 @@ SEEDED = {
                 "DECLINED", 1, "rv.erik", "2026-10-15T11:10:00Z", 40, CONSOLIDATING, "Up to 30 bps acceptable"
             ),
         ],
+        "permissions": {"decide": not_in("DECLINED"), "revise": NOT_AN_RM},
     },
 }
 LIST_FIELDS = {"id", "application_id", "status", "revision", "discount_bps", "requested_by", "created_at"}
@@ -154,7 +174,7 @@ def walk(client: TestClient, limit: int, **params: str) -> list[list[dict[str, o
         response = client.get(REQUESTS, params=query, headers=as_user("rv.dana"))
         assert response.status_code == 200
         page = response.json()
-        assert set(page) == {"items", "next_cursor"}
+        assert set(page) == {"items", "next_cursor", "permissions"}
         pages.append(page["items"])
         cursor = page["next_cursor"]
         if cursor is None:

@@ -1,0 +1,847 @@
+/* The page's only style sheet. No inline styles anywhere: the security policy would block them.
+   Built for laptop and desktop screens in landscape: a fixed header, then three panes (queue, case, actions)
+   that each scroll on their own, so the decision buttons stay in view while the history is read. */
+
+:root {
+  color-scheme: light dark;
+  --page: #e8ecf1;
+  --pane: #ffffff;
+  --sunken: #f4f6f9;
+  --ink: #17202e;
+  --muted: #566275;
+  --faint: #8792a3;
+  --rule: #d5dbe3;
+  --rule-strong: #b3bccb;
+  --accent: #0b6b5a;
+  --accent-hover: #095a4b;
+  --on-accent: #ffffff;
+  --accent-soft: #e1f0ec;
+  --focus: #2a63b8;
+  --change: #3a66b0;
+  --demo-bg: #f5cf62;
+  --demo-ink: #3a2900;
+  --pending-bg: #fff0cc;
+  --pending-ink: #6c4500;
+  --approved-bg: #dcf0e2;
+  --approved-ink: #1a5f2f;
+  --declined-bg: #fae1e1;
+  --declined-ink: #8f2626;
+  --problem-bg: #fdeeee;
+  --problem-rule: #e2a3a3;
+  --problem-ink: #7a1d1d;
+  --notice-bg: #e1f0ec;
+  --notice-ink: #0a4d42;
+  --backdrop: rgb(15 23 42 / 45%);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --page: #10141b;
+    --pane: #181e28;
+    --sunken: #141922;
+    --ink: #e4e8ef;
+    --muted: #a3acbb;
+    --faint: #7c8697;
+    --rule: #2c3442;
+    --rule-strong: #46505f;
+    --accent: #3fb39c;
+    --accent-hover: #5cc6b1;
+    --on-accent: #0b1a17;
+    --accent-soft: #15302b;
+    --focus: #7fb0ff;
+    --change: #7fa6e8;
+    --demo-bg: #5a4510;
+    --demo-ink: #ffe9b0;
+    --pending-bg: #3d2f12;
+    --pending-ink: #ffd88a;
+    --approved-bg: #173523;
+    --approved-ink: #9ee0b0;
+    --declined-bg: #401c1c;
+    --declined-ink: #ffb3b3;
+    --problem-bg: #3a1c1c;
+    --problem-rule: #7a3a3a;
+    --problem-ink: #ffcaca;
+    --notice-bg: #143630;
+    --notice-ink: #a8e6d8;
+    --backdrop: rgb(0 0 0 / 60%);
+  }
+}
+
+/* Author styles such as display: flex would otherwise win over the hidden attribute. */
+[hidden] {
+  display: none !important;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  overflow: hidden;
+  background: var(--page);
+  color: var(--ink);
+  font: 15px/1.5 "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, Roboto, "Helvetica Neue",
+    sans-serif;
+  font-variant-numeric: tabular-nums;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  line-height: 1.25;
+  font-weight: 600;
+}
+
+h1 {
+  font-size: 1.125rem;
+}
+
+h2 {
+  font-size: 1.125rem;
+}
+
+h3 {
+  font-size: 1rem;
+}
+
+p {
+  margin: 0;
+}
+
+/* ---- Demo strip and header ---- */
+
+.demo-strip {
+  flex: none;
+  padding: 0.3rem 1.25rem;
+  background: var(--demo-bg);
+  color: var(--demo-ink);
+  font-size: 0.875rem;
+}
+
+.appbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1.25rem;
+  background: var(--pane);
+  border-bottom: 1px solid var(--rule);
+}
+
+.acting-as {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0;
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+
+.identity-note {
+  flex: none;
+  padding: 0.6rem 1.25rem;
+  background: var(--problem-bg);
+  color: var(--problem-ink);
+}
+
+/* ---- The three panes ---- */
+
+.workspace {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 22rem minmax(0, 1fr);
+}
+
+.queue {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+  background: var(--sunken);
+  border-right: 1px solid var(--rule);
+}
+
+.detail {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 1.5rem;
+  padding: 1.5rem 1.75rem 3rem;
+}
+
+.detail.with-actions {
+  grid-template-columns: minmax(0, 1fr) 23rem;
+}
+
+/* The actions stay in view while the case and its history scroll past. */
+.actions {
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.case {
+  max-width: 50rem;
+  min-width: 0;
+}
+
+/* A narrow laptop window: the actions move under the case. */
+@media (max-width: 1180px) {
+  .detail.with-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .actions {
+    position: static;
+  }
+}
+
+/* Phones are not the target; the page only has to stay usable, one pane after another. */
+@media (max-width: 820px) {
+  body {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+
+  .workspace {
+    display: block;
+  }
+
+  .queue {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .detail {
+    padding: 1rem;
+  }
+}
+
+/* ---- Controls ---- */
+
+label {
+  display: grid;
+  gap: 0.3rem;
+  margin: 0.85rem 0 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+}
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+input,
+select,
+textarea {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  background: var(--pane);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  font-weight: 400;
+}
+
+.acting-as select,
+.per-page select {
+  width: auto;
+  max-width: 100%;
+}
+
+textarea {
+  resize: vertical;
+}
+
+button {
+  padding: 0.45rem 0.95rem;
+  background: var(--pane);
+  border: 1px solid var(--rule-strong);
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: var(--ink);
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+button.primary,
+button.approve {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+button.primary:hover,
+button.approve:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+button.decline {
+  color: var(--declined-ink);
+  border-color: var(--declined-ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  margin-top: 0.85rem;
+}
+
+/* ---- The queue ---- */
+
+.queue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.status-tabs {
+  display: flex;
+  padding: 3px;
+  background: var(--page);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+}
+
+.status-tabs button {
+  flex: 1 1 auto;
+  padding: 0.35rem 0.5rem;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.status-tabs button[aria-pressed="true"] {
+  background: var(--pane);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--rule-strong);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.15rem 0.75rem;
+  width: 100%;
+  padding: 0.65rem 0.8rem;
+  text-align: left;
+  background: var(--pane);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  font-weight: 400;
+}
+
+.row[aria-current="true"] {
+  border-color: var(--accent);
+  box-shadow: inset 4px 0 0 var(--accent);
+}
+
+.row-app {
+  font-weight: 600;
+}
+
+.row-bps {
+  font-weight: 600;
+  text-align: right;
+}
+
+.row-meta,
+.row-date {
+  color: var(--muted);
+  font-size: 0.8125rem;
+}
+
+.row-date {
+  text-align: right;
+}
+
+.empty {
+  color: var(--muted);
+}
+
+.queue-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: auto;
+  padding-top: 0.5rem;
+}
+
+#load-more {
+  flex: 1;
+}
+
+.per-page {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0 0 0 auto;
+  color: var(--muted);
+  font-weight: 400;
+}
+
+/* ---- The case ---- */
+
+.empty-state {
+  max-width: 34rem;
+  margin: 4rem auto 0;
+  text-align: center;
+}
+
+.empty-state h2 {
+  font-size: 1.375rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  color: var(--muted);
+}
+
+.case-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.case-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  padding-top: 0.35rem;
+}
+
+.case-title h2 {
+  font-size: 1.75rem;
+  letter-spacing: -0.01em;
+}
+
+/* Every rule in this service binds to a revision, so the revision on screen is the page's one loud element. */
+.stamp {
+  display: grid;
+  justify-items: center;
+  min-width: 5.5rem;
+  padding: 0.3rem 1rem 0.45rem;
+  border: 2px solid var(--ink);
+  border-radius: 8px;
+  line-height: 1;
+}
+
+.stamp-label {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.stamp-number {
+  font-size: 2.5rem;
+  font-weight: 700;
+}
+
+.terms {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.terms-bps {
+  font-size: 2rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.terms-percent {
+  color: var(--muted);
+}
+
+.requested {
+  margin-top: 0.25rem;
+  color: var(--muted);
+}
+
+.reason {
+  max-width: 68ch;
+  margin: 1rem 0 0;
+  padding: 0.75rem 1rem;
+  background: var(--pane);
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 0.35rem 1.25rem;
+  margin: 1.25rem 0 0;
+}
+
+.facts dt {
+  color: var(--muted);
+}
+
+.facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.request-id {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ---- What the mortgage process reads ---- */
+
+.consumer {
+  max-width: 50rem;
+  margin-top: 1.5rem;
+  padding: 0.9rem 1rem;
+  background: var(--pane);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.consumer-hint {
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.consumer-line {
+  margin-top: 0.6rem;
+  font-weight: 600;
+}
+
+.consumer-line.approved {
+  color: var(--approved-ink);
+}
+
+.consumer details {
+  margin-top: 0.6rem;
+}
+
+.consumer summary {
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.consumer-call {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.consumer pre {
+  margin: 0.4rem 0 0;
+  padding: 0.6rem 0.75rem;
+  overflow-x: auto;
+  background: var(--sunken);
+  border: 1px solid var(--rule);
+  border-radius: 6px;
+  font-size: 0.8125rem;
+}
+
+.create-note {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ---- History: a timeline, oldest first ---- */
+
+.history {
+  margin-top: 2rem;
+}
+
+.timeline {
+  margin: 0.85rem 0 0 0.4rem;
+  padding: 0;
+  list-style: none;
+  border-left: 2px solid var(--rule);
+}
+
+.event {
+  position: relative;
+  padding: 0 0 1.25rem 1.5rem;
+}
+
+.event::before {
+  content: "";
+  position: absolute;
+  left: -7px;
+  top: 0.35rem;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--change);
+  box-shadow: 0 0 0 3px var(--page);
+}
+
+.event-approved::before {
+  background: var(--approved-ink);
+}
+
+.event-declined::before {
+  background: var(--declined-ink);
+}
+
+.event-title {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.event-name {
+  font-weight: 600;
+}
+
+.event-revision,
+.event-meta {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.event-terms {
+  margin-top: 0.3rem;
+  font-weight: 600;
+}
+
+.event-reason,
+.event-comment {
+  max-width: 68ch;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.event-reason {
+  color: var(--muted);
+}
+
+.event-comment {
+  margin-top: 0.3rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--rule-strong);
+}
+
+/* ---- Actions ---- */
+
+.action-card {
+  padding: 1rem 1.1rem 1.1rem;
+  background: var(--pane);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+}
+
+.action-card.decide {
+  border-color: var(--rule-strong);
+}
+
+.final {
+  padding: 0.7rem 0.85rem;
+  background: var(--approved-bg);
+  color: var(--approved-ink);
+  border-radius: 8px;
+  font-weight: 600;
+}
+
+.unavailable h3 {
+  color: var(--muted);
+  font-size: 0.9375rem;
+}
+
+.refusals {
+  display: grid;
+  gap: 0.6rem;
+  margin: 0.6rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.refusals li {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.refusal-action {
+  font-weight: 600;
+}
+
+.refusal-detail {
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.binds {
+  margin-top: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  background: var(--accent-soft);
+  border-radius: 6px;
+  font-size: 0.875rem;
+}
+
+.who {
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+/* ---- Status badges ---- */
+
+.badge {
+  display: inline-block;
+  padding: 0.1rem 0.6rem;
+  border-radius: 999px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge-pending-review {
+  background: var(--pending-bg);
+  color: var(--pending-ink);
+}
+
+.badge-approved {
+  background: var(--approved-bg);
+  color: var(--approved-ink);
+}
+
+.badge-declined {
+  background: var(--declined-bg);
+  color: var(--declined-ink);
+}
+
+/* ---- Messages ---- */
+
+.problem {
+  margin-top: 0.85rem;
+  padding: 0.65rem 0.8rem;
+  background: var(--problem-bg);
+  border: 1px solid var(--problem-rule);
+  border-radius: 8px;
+  color: var(--problem-ink);
+  overflow-wrap: anywhere;
+}
+
+.problem p,
+.problem ul {
+  margin: 0.3rem 0 0;
+}
+
+.problem ul {
+  padding-left: 1.2rem;
+}
+
+.problem .problem-title {
+  margin: 0;
+  font-weight: 600;
+}
+
+.problem .buttons {
+  margin-top: 0.6rem;
+}
+
+.code {
+  display: inline-block;
+  margin-right: 0.5rem;
+  padding: 0 0.4rem;
+  border: 1px solid var(--problem-rule);
+  border-radius: 4px;
+}
+
+.current {
+  font-weight: 600;
+}
+
+.notice {
+  padding: 0.6rem 0.8rem;
+  background: var(--notice-bg);
+  color: var(--notice-ink);
+  border-radius: 8px;
+}
+
+/* ---- New request dialog ---- */
+
+dialog {
+  width: min(32rem, 92vw);
+  padding: 1.5rem;
+  background: var(--pane);
+  color: var(--ink);
+  border: 1px solid var(--rule);
+  border-radius: 12px;
+  box-shadow: 0 18px 48px rgb(15 23 42 / 25%);
+}
+
+dialog::backdrop {
+  background: var(--backdrop);
+}
+
+dialog h2 {
+  font-size: 1.25rem;
+}
+
+.hint {
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.875rem;
+}
+
+.dialog-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.6rem;
+  margin-top: 1.25rem;
+}

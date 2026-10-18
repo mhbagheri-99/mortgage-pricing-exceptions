@@ -1,11 +1,11 @@
-"""The FastAPI application: the problem handlers, the contract routes and /health."""
+"""The FastAPI application: the problem handlers, the contract routes, /health and the page at /ui."""
 
 import logging
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
 
-from pricing_exceptions.api import problems
+from pricing_exceptions.api import problems, ui
 from pricing_exceptions.api.identity import caller_dependency
 from pricing_exceptions.api.routes import build_router
 from pricing_exceptions.domain.model import Clock
@@ -35,4 +35,5 @@ def create_app(engine: Engine, clock: Clock, *, demo_identity: bool) -> FastAPI:
             headers={"Retry-After": "1"},
         )
 
+    ui.install(app, engine, demo_identity=demo_identity)
     return app

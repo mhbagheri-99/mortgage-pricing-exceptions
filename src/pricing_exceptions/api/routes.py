@@ -20,7 +20,6 @@ from pricing_exceptions.api.schemas import (
     NoDiscount,
     PageOut,
     RequestOut,
-    RequestSummary,
     ReviseRequest,
 )
 from pricing_exceptions.domain.model import Actor, Clock, Status
@@ -45,7 +44,7 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         response.headers["Location"] = f"{PREFIX}{REQUESTS}/{created.record.request.id}"
         if created.replayed:
             response.headers["Idempotent-Replayed"] = "true"
-        return RequestOut.of_record(created.record)
+        return RequestOut.for_caller(created.record, actor)
 
     @router.get(REQUESTS, name="list", tags=["requests"])
     def list_requests(
@@ -54,16 +53,17 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         limit: Annotated[int, Query(ge=1, le=200)] = 50,
         cursor: Annotated[str | None, Query(max_length=200)] = None,
     ) -> PageOut:
-        """Requests in one status, oldest first, one page at a time. Follow `next_cursor` until it is null."""
+        """Requests in one status, oldest first, one page at a time. Follow `next_cursor` until it is null.
+        `permissions` says whether the caller may create a request."""
         after = read_cursor(cursor) if cursor is not None else None
         page = queries.list_requests(engine, actor, status, after, limit)
         next_cursor = write_cursor(page.next_after) if page.next_after else None
-        return PageOut(items=[RequestSummary.of(item) for item in page.items], next_cursor=next_cursor)
+        return PageOut.for_caller(page.items, next_cursor, actor)
 
     @router.get(REQUESTS + "/{request_id}", name="get", tags=["requests"])
     def get(request_id: UUID, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
-        """The request as it is now, its latest decision, and its whole history."""
-        return RequestOut.of_record(queries.get_request(engine, actor, request_id))
+        """The request as it is now, its latest decision, its whole history, and what the caller may do."""
+        return RequestOut.for_caller(queries.get_request(engine, actor, request_id), actor)
 
     @router.post(REQUESTS + "/{request_id}/revisions", name="revise", tags=["requests"])
     def revise(request_id: UUID, body: ReviseRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
@@ -71,14 +71,16 @@ def build_router(engine: Engine, clock: Clock, caller: Callable[..., Actor]) -> 
         awaits review, or after a decline as a resubmission; approved is final. Send the revision you saw:
         if the request changed since, the answer is 409 stale-revision with the request as it is now."""
         terms = Terms(body.discount_bps, body.reason)
-        return RequestOut.of_record(commands.revise(engine, clock, actor, request_id, body.revision, terms))
+        revised = commands.revise(engine, clock, actor, request_id, body.revision, terms)
+        return RequestOut.for_caller(revised, actor)
 
     @router.post(REQUESTS + "/{request_id}/decisions", name="decide", tags=["requests"])
     def decide(request_id: UUID, body: DecideRequest, actor: Annotated[Actor, Depends(caller)]) -> RequestOut:
         """Approve or decline the revision you reviewed. A reviewer who did not make the request; a decline
         needs a comment. The decision records who and when, and binds to that revision only."""
         verdict = Verdict(body.outcome, body.comment)
-        return RequestOut.of_record(commands.decide(engine, clock, actor, request_id, body.revision, verdict))
+        decided = commands.decide(engine, clock, actor, request_id, body.revision, verdict)
+        return RequestOut.for_caller(decided, actor)
 
     @router.get(
         "/mortgage-applications/{application_id}/approved-discount",
