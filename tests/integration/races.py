@@ -1,4 +1,4 @@
-"""The race barrier (design doc 7.10): wait for a condition, with a deadline, never a fixed sleep.
+"""The race barrier: wait for a condition, with a deadline, never a fixed sleep.
 
 This file holds only the polling helper. Its 10 ms pause between polls is the one `time.sleep` the lint rule
 allows, through a per-file ignore in pyproject.toml that lifts every banned API here, so nothing else belongs
@@ -32,7 +32,7 @@ def wait_until_blocked(engine: Engine, holder: int) -> None:
 
     Each poll is its own transaction (autocommit): PostgreSQL keeps one snapshot of pg_stat_activity for a
     whole transaction, so polling inside one transaction would never see a call that started waiting after the
-    first poll (found in P5's spike).
+    first poll.
     """
     with engine.connect().execution_options(isolation_level="AUTOCOMMIT") as poll:
         wait_for(

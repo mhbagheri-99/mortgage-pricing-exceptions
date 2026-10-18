@@ -1,4 +1,5 @@
-"""The database engine, with the isolation level and the time limits the guarantees rely on (design doc 7.3).
+"""The database engine, with the isolation level and the time limits the guarantees rely on
+(docs/architecture.md, "Time limits").
 
 Worst case for one use case: 3 s to get a connection (waiting for a pooled one, or opening a new one), then
 5 s for the whole transaction, so the server gives up before a client that waits 10 s. The demo identity's
@@ -21,9 +22,9 @@ def make_engine(database_url: str) -> Engine:
         pool_timeout=3,  # waiting for a pooled connection
         pool_pre_ping=True,
         # connect_timeout bounds opening a new connection; without it an unreachable database hangs a call
-        # for minutes (130 s on Windows in P1), far past the 8 s budget.
+        # for minutes (130 s on Windows), far past the 8 s budget.
         connect_args={"options": CONNECTION_OPTIONS, "connect_timeout": 3},
-        hide_parameters=True,  # an error message never carries a bound value, such as a reason (7.9)
+        hide_parameters=True,  # an error message never carries a bound value, such as a reason
     )
 
 

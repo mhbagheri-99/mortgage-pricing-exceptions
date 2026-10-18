@@ -1,4 +1,4 @@
-"""rules.decide(): approve or decline one revision (design doc 5.5 and 6.3, agreed on 18 October 2026).
+"""rules.decide(): approve or decline one revision (ADR 0001).
 
 The transition table below is the spec, written out cell by cell; `uv run pytest tests/domain -v` prints one
 line per cell. The actors are seeded users: rv.dana is a reviewer, lead.fatima holds both roles and made the
@@ -257,8 +257,8 @@ def test_a_decision_records_who_and_when(outcome: Outcome, comment: str | None) 
 
 
 def test_free_text_stays_out_of_repr() -> None:
-    """The reason and comment are never logged (design doc 7.9), so a stray repr() in a log line must not leak
-    them. P2 review finding 4."""
+    """The reason and comment are never logged (docs/architecture.md, "Logging"), so a stray repr() in a log
+    line must not leak them."""
     comment = "Up to 20 bps acceptable"
     decided, event = decide(
         a_request(Status.PENDING_REVIEW, "rm.anna"), RV_DANA, 2, Verdict(Outcome.DECLINED, comment), NOW

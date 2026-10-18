@@ -1,4 +1,4 @@
-"""Stop hook: the agent may not finish while a fast gate fails (design doc D10).
+"""Stop hook: the agent may not finish while a fast gate fails (docs/agentic-sdlc.md).
 
 It runs `scripts/check.py --fast` (lint, format, types, layers, requirement ids, skip markers, the tests that
 need no Docker). A failure exits with code 2, which keeps the agent working and shows it the failing gates.

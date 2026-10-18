@@ -1,6 +1,6 @@
-"""Read: a request with its whole history (FR-5), the review queue page by page (FR-7, design doc 5.6), and
-the approved discount the mortgage process reads (FR-4, 5.4). The expected bodies spell out the seed table of
-section 10, so a change to the seed or the response shape shows up here."""
+"""Read: a request with its whole history (FR-5), the review queue page by page (FR-7), and the
+approved discount the mortgage process reads (FR-4). The expected bodies spell out the seed table
+(db/seed.py), so a change to the seed or the response shape shows up here."""
 
 import base64
 import json
@@ -73,7 +73,7 @@ SEEDED = {
             event("SUBMITTED", 1, "rm.bram", "2026-10-15T09:15:00Z", 15, MOVING),
             event("AMENDED", 2, "rm.bram", "2026-10-15T09:40:00Z", 20, CONFIRMED),
         ],
-        # What rv.dana, who reads these, may do (P7): decide this pending one, never revise.
+        # What rv.dana, who reads these, may do: decide this pending one, never revise.
         "permissions": {"decide": ALLOWED, "revise": NOT_AN_RM},
     },
     1004: {
@@ -367,7 +367,7 @@ def test_the_mortgage_process_reads_the_approved_discount(client: TestClient, us
     ids=["no request", "pending", "changed", "declined"],
 )
 def test_before_an_approval_the_answer_is_none(client: TestClient, application: str) -> None:
-    """No discount_bps key at all, so a consumer cannot read a null as zero (design doc 5.4)."""
+    """No discount_bps key at all, so a consumer cannot read a null as zero."""
     response = client.get(DISCOUNT.format(application), headers=as_user("svc.mortgage"))
     assert response.status_code == 200
     assert response.json() == {"application_id": application, "status": "NONE"}

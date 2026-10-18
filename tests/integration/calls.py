@@ -1,4 +1,4 @@
-"""Helpers shared by the API tests: who is calling, where, and the seeded ids (design doc section 10)."""
+"""Helpers shared by the API tests: who is calling, where, and the seeded ids (see db/seed.py)."""
 
 from datetime import datetime, timedelta
 
@@ -46,7 +46,8 @@ def decisions(request: int | str) -> str:
 
 
 def revise_body(revision: object, discount_bps: object = 30, reason: object = NEW_REASON) -> dict:
-    """A revision always carries the revision it was based on and both terms (design doc 5.3)."""
+    """A revision always carries the revision it was based on and both terms
+    (docs/architecture.md, "Endpoints")."""
     return {"revision": revision, "discount_bps": discount_bps, "reason": reason}
 
 

@@ -1,5 +1,5 @@
 """Create and read, in the domain: who may create and read, what a new request looks like, what counts as a
-retry of the create that made a request (design doc D3), and which decision is the latest (5.2)."""
+retry of the create that made a request (ADR 0002), and which decision is the latest."""
 
 from collections.abc import Callable
 from dataclasses import replace

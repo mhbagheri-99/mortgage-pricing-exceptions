@@ -1,4 +1,5 @@
-"""The browser page at /ui and the user list its acting-as switcher reads (design doc D11, 6.6).
+"""The browser page at /ui and the user list its acting-as switcher reads
+(ADR 0004; docs/architecture.md, "The page").
 
 The page is three static files in `ui/`. It calls only the public /api/v1 endpoints, plus /demo/users, and
 decides no access: the actions it offers come from the server's `permissions`, and every refusal it shows is
@@ -18,11 +19,11 @@ from pricing_exceptions.service import Engine, queries
 
 UI_DIR = Path(__file__).parent / "ui"
 
-# Sent with the page's files only (design doc 7.5). default-src 'self' lets the page load its own script,
-# style sheet and API calls and nothing else, so no inline script can run even if text were ever turned into
-# markup. The other three directives are the ones default-src does not cover. nosniff makes the browser trust
-# each file's declared type instead of guessing. no-cache makes it ask again on every load (a cheap 304 when
-# nothing changed), so after a rebuild it never runs an old app.js against the new API (P7 review).
+# Sent with the page's files only (docs/architecture.md, "Security"). default-src 'self' lets the page
+# load its own script, style sheet and API calls and nothing else, so no inline script can run even if text
+# were ever turned into markup. The other three directives are the ones default-src does not cover. nosniff
+# makes the browser trust each file's declared type instead of guessing. no-cache makes it ask again on every
+# load (a cheap 304 when nothing changed), so after a rebuild it never runs an old app.js against the new API.
 SECURITY_HEADERS = {
     "Content-Security-Policy": (
         "default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
@@ -47,7 +48,8 @@ class PageFiles(StaticFiles):
 def install(app: FastAPI, engine: Engine, *, demo_identity: bool) -> None:
     if demo_identity:
         # Registered only with the demo identity on: off, it is a 404 like any unknown path, so it gives away
-        # nothing. Left out of the API description, because it is not part of the contract (design doc 5.1).
+        # nothing. Left out of the API description, because it is not part of the contract
+        # (docs/architecture.md, "Endpoints").
         @app.get("/demo/users", include_in_schema=False)
         def demo_users() -> list[DemoUser]:
             """Every seeded user, for the page's acting-as switcher. No X-User-Id: nobody is chosen yet."""

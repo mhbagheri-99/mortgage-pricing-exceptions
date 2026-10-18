@@ -1,6 +1,6 @@
 """Every business rule: the policy limits, the value objects that enforce them, and the transitions.
 
-The limits are our assumptions (design doc 3.4): the brief sets none, so each is one constant here.
+The limits are our assumptions (README, "Assumptions"): the brief sets none, so each is one constant here.
 """
 
 from collections.abc import Callable
@@ -93,7 +93,7 @@ _EVENT_FOR = {Outcome.APPROVED: EventType.APPROVED, Outcome.DECLINED: EventType.
 
 def check_role_to_decide(actor: Actor) -> None:
     """403 unless the actor is a reviewer. It depends only on who asks, so the service runs it before it
-    locks the request; decide() runs it first too, so the rule is complete on its own (P4 decision 1)."""
+    locks the request; decide() runs it first too, so the rule is complete on its own."""
     if Role.REVIEWER not in actor.roles:
         raise Forbidden("Only a reviewer can decide a request.")
 
@@ -118,9 +118,10 @@ def decide(
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
     """Approve or decline one revision, and return the decided request with the one event to append.
 
-    The guards run in a fixed order (design doc 5.5): who may act (403), then the status (409 invalid-state),
-    then the revision (409 stale-revision). The first that fails wins, so the same input always gets the same
-    answer, even during a race. The 403 checks read only what never changes on a request.
+    The guards run in a fixed order (docs/architecture.md, "Order of checks"): who may act (403), then the
+    status (409 invalid-state), then the revision (409 stale-revision). The first that fails wins, so the same
+    input always gets the same answer, even during a race. The 403 checks read only what never changes on a
+    request.
     """
     check_decide(request, actor)
     if revision != request.revision:  # the decision binds to the revision the reviewer saw (N1)
@@ -143,7 +144,7 @@ def decide(
     return decided, event
 
 
-# What a revision writes, by the status it starts from. Approved is not here: it is final (design doc D1).
+# What a revision writes, by the status it starts from. Approved is not here: it is final (ADR 0001).
 _REVISION_EVENT = {Status.PENDING_REVIEW: EventType.AMENDED, Status.DECLINED: EventType.RESUBMITTED}
 
 
@@ -164,10 +165,11 @@ def revise(
 ) -> tuple[PricingExceptionRequest, RequestEvent]:
     """Change the terms as the next revision, and return the revised request with the one event to append.
 
-    The guards run in the same fixed order as decide() (design doc 5.5): who may act (403), then the status
-    (409 invalid-state), then the revision (409 stale-revision). Pending writes AMENDED. Declined writes
-    RESUBMITTED and goes back to pending, which clears the row's decision; the decline stays in history (D2,
-    4.2). Both terms are replaced every time, and terms identical to the current ones are allowed (D2).
+    The guards run in the same fixed order as decide() (docs/architecture.md, "Order of checks"): who may
+    act (403), then the status (409 invalid-state), then the revision (409 stale-revision). Pending writes
+    AMENDED. Declined writes RESUBMITTED and goes back to pending, which clears the row's decision; the
+    decline stays in history (ADR 0001). Both terms are replaced every time, and terms identical to the
+    current ones are allowed.
     """
     event_type = check_revise(request, actor)
     if revision != request.revision:  # the change applies to the revision the requester saw
@@ -205,7 +207,7 @@ def submit(
 
     Only the role is checked here (403). Whether the application exists is reference data the service looks
     up; one request per application is the database's unique constraint, the one rule that spans rows
-    (design doc 4.1).
+    (docs/architecture.md, "Data model").
     """
     check_submit(actor)
     request = PricingExceptionRequest(
@@ -232,7 +234,7 @@ def submit(
 
 def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
     """True when this create repeats the one that made `existing`: the same requester and the same terms,
-    exactly as sent (design doc D3).
+    exactly as sent (ADR 0002).
 
     It compares with the SUBMITTED event, which never changes, not with the current row, so a retry that
     arrives after an amendment or a decision still replays. Anything else is a different create.
@@ -263,7 +265,7 @@ _CHECKS: dict[Action, Callable[[PricingExceptionRequest, Actor], object]] = {
 
 def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, DomainError | None]:
     """What the actor may do to the request as it is now: for each action, None when it would go through at
-    the current revision, else the error it would raise (P7, design doc 10.2).
+    the current revision, else the error it would raise.
 
     It runs the actions' own checks, in their own order, so a permission and the action can never disagree.
     The revision is left out because a caller acts on the current one; the action still checks it.
@@ -280,7 +282,7 @@ def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, 
 
 
 def collection_permissions(actor: Actor) -> dict[Action, DomainError | None]:
-    """What the actor may do with the collection of requests: create one (P7). Like permissions(), it runs
+    """What the actor may do with the collection of requests: create one. Like permissions(), it runs
     the action's own check, so the answer and submit() can never disagree."""
     try:
         check_submit(actor)
@@ -299,7 +301,7 @@ def is_staff(roles: frozenset[Role]) -> bool:
 
 def require_staff(actor: Actor) -> None:
     """Reading requests is for staff: relationship managers and reviewers. The mortgage process reads only
-    approved discounts (design doc 5.1)."""
+    approved discounts (docs/architecture.md, "Endpoints")."""
     if not is_staff(actor.roles):
         raise Forbidden("Only relationship managers and reviewers can read requests.")
 
@@ -309,5 +311,6 @@ _DECISION_EVENTS = frozenset(_EVENT_FOR.values())
 
 def latest_decision(history: tuple[RequestEvent, ...]) -> RequestEvent | None:
     """The newest decision in a request's history, or None. After a resubmission it is still the decline the
-    resubmission answers, although the row's decision columns are empty (design doc 5.2)."""
+    resubmission answers, although the row's decision columns are empty (docs/architecture.md, "Reading a
+    response")."""
     return next((e for e in reversed(history) if e.event_type in _DECISION_EVENTS), None)

@@ -1,5 +1,5 @@
-"""Every error as RFC 9457 problem details (design doc D7, 5.5), and the log line for each refused write
-(7.9).
+"""Every error as RFC 9457 problem details (docs/architecture.md, "Errors"), and the log line for each
+refused write (docs/architecture.md, "Logging").
 
 Five handlers: input that is unparseable (400) or invalid (422); HTTP errors such as 401, 404 and 405; our
 domain errors; the database being busy or down (503); and anything else, which is a bug (500, no stack trace
@@ -118,9 +118,10 @@ def problem(
 
 
 def log_refused_write(request: Request, problem_type: str, status: int, request_id: UUID | None) -> None:
-    """Who tried what, and why it was refused; never the reason, the comment or the body (design doc 7.9).
-    The actor is the verified one, or `none` before the identity check passed: the raw header is never
-    logged, because the caller controls it. The request id is printed only once it has parsed as a UUID."""
+    """Who tried what, and why it was refused; never the reason, the comment or the body
+    (docs/architecture.md, "Logging"). The actor is the verified one, or `none` before the identity check
+    passed: the raw header is never logged, because the caller controls it. The request id is printed only
+    once it has parsed as a UUID."""
     actor = getattr(request.state, "actor", None)
     if request_id is None:
         request_id = _path_request_id(request)
@@ -171,10 +172,10 @@ def install(app: FastAPI) -> None:
                 {"pointer": f"#/{field}", "detail": why} for field, why in exc.problems.items()
             ]
         if isinstance(exc, StaleRevision):
-            extensions["sent_revision"] = exc.sent_revision  # the current one is in `current` (5.3)
+            extensions["sent_revision"] = exc.sent_revision  # the current one is in `current`
         if isinstance(exc, Conflict):
             if exc.current is None:
-                raise RuntimeError("every 409 must carry the current request (design doc 5.3)") from exc
+                raise RuntimeError("every 409 must carry the current request (docs/architecture.md)") from exc
             extensions["current"] = RequestCurrent.of_record(exc.current).model_dump(mode="json")
             request_id = exc.current.request.id
         code = None if isinstance(exc, NotFound) else exc.code

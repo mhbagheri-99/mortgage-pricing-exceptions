@@ -1,4 +1,4 @@
-"""Write use cases: one transaction each, opened here and nowhere else (design doc 7.4)."""
+"""Write use cases: one transaction each, opened here and nowhere else (ADR 0003)."""
 
 import logging
 from collections.abc import Callable
@@ -25,7 +25,7 @@ class Created:
 
 
 def submit(engine: Engine, clock: Clock, actor: Actor, application_id: str, terms: rules.Terms) -> Created:
-    """Create a request, or replay the create that made it (design doc D3).
+    """Create a request, or replay the create that made it (ADR 0002).
 
     The terms were checked when they were built (422). Then, in order: the RM role (403), the application
     (422), the insert. On a conflict the existing request is read in a separate statement, which at READ
@@ -54,7 +54,7 @@ def submit(engine: Engine, clock: Clock, actor: Actor, application_id: str, term
 def revise(
     engine: Engine, clock: Clock, actor: Actor, request_id: UUID, revision: int, terms: rules.Terms
 ) -> RequestRecord:
-    """Change the terms as the next revision (design doc D2). The terms were checked when they were built
+    """Change the terms as the next revision (ADR 0001). The terms were checked when they were built
     (422); whether the actor may revise at all is checked before any database access (403)."""
     rules.check_role_to_revise(actor)
     return _change(
@@ -65,7 +65,7 @@ def revise(
 def decide(
     engine: Engine, clock: Clock, actor: Actor, request_id: UUID, revision: int, verdict: rules.Verdict
 ) -> RequestRecord:
-    """Approve or decline one revision (design doc D1, D4). The verdict was checked when it was built (422);
+    """Approve or decline one revision (ADR 0001, ADR 0003). The verdict was checked when it was built (422);
     whether the actor may decide at all is checked before any database access (403)."""
     rules.check_role_to_decide(actor)
     return _change(
@@ -78,7 +78,7 @@ type Rule = Callable[[PricingExceptionRequest, datetime], tuple[PricingException
 
 
 def _change(engine: Engine, clock: Clock, request_id: UUID, rule: Rule) -> RequestRecord:
-    """The locked transaction behind every change to a request (design doc D4, 6.5 and 7.4).
+    """The locked transaction behind every change to a request (ADR 0003).
 
     Lock the row by primary key; read the clock; run the pure rule on the row the lock returned; write the row
     and its one event; read the response; commit. A writer that waited for the lock gets the newest committed
@@ -102,7 +102,7 @@ def _change(engine: Engine, clock: Clock, request_id: UUID, rule: Rule) -> Reque
 
 
 def _log_change(event: RequestEvent) -> None:
-    """One INFO line per state change: never the reason or the comment (design doc 7.9)."""
+    """One INFO line per state change: never the reason or the comment (docs/architecture.md, "Logging")."""
     log.info(
         "state change: request=%s actor=%s event=%s revision=%d",
         event.request_id,

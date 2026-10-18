@@ -11,10 +11,10 @@ DatabaseError = SQLAlchemyError
 
 
 def is_unavailable(error: SQLAlchemyError) -> bool:
-    """True for "try again shortly" (design doc 5.5, 7.3): no connection within 3 s, the database down or
-    restarting, a lock wait over 2 s (55P03), a statement over 3 s (57014), a transaction over 5 s (it ends
-    the session), and the deadlock and serialization failures that should never happen (40P01, 40001).
-    psycopg reports all of these as OperationalError, or as a lost connection."""
+    """True for "try again shortly" (docs/architecture.md, "Time limits"): no connection within 3 s, the
+    database down or restarting, a lock wait over 2 s (55P03), a statement over 3 s (57014), a
+    transaction over 5 s (it ends the session), and the deadlock and serialization failures that should never
+    happen (40P01, 40001). psycopg reports all of these as OperationalError, or as a lost connection."""
     if isinstance(error, (OperationalError, InterfaceError, PoolTimeout)):
         return True
     return isinstance(error, DBAPIError) and error.connection_invalidated

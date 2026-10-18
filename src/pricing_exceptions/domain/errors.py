@@ -1,4 +1,4 @@
-"""What can go wrong: one class per problem type in the error catalogue (design doc 5.5).
+"""What can go wrong: one class per problem type in the error catalogue (docs/architecture.md, "Errors").
 
 Each class carries its catalogue `code`. The api adds the HTTP status (api/problems.py); the domain never
 knows about HTTP.
@@ -55,9 +55,9 @@ class NotFound(DomainError):
 class Conflict(DomainError):
     """409: the action conflicts with the request as it is now.
 
-    `current` is that request, for the response body: every 409 carries it (design doc 5.3), so a client whose
-    response was lost can see whether its change landed. The pure rules cannot read it; the service fills it
-    in before its transaction ends.
+    `current` is that request, for the response body: every 409 carries it (docs/architecture.md, "Errors"),
+    so a client whose response was lost can see whether its change landed. The pure rules cannot read it; the
+    service fills it in before its transaction ends.
     """
 
     current: RequestRecord | None = None

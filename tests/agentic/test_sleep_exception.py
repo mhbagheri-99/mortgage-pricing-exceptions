@@ -1,8 +1,8 @@
-"""The one time.sleep exception (design doc 7.10, agreed in P5) stays one exception.
+"""The one time.sleep exception (docs/architecture.md, "Testing") stays one exception.
 
 The per-file ignore for tests/integration/races.py switches off the whole banned-API rule (TID251) in that
 file, not only time.sleep, and no lint run looks there again. These tests lint the barrier's source as if it
-lived in any other file, and allow exactly one banned call: its 10 ms pause (P5 review finding 1).
+lived in any other file, and allow exactly one banned call: its 10 ms pause.
 """
 
 import json

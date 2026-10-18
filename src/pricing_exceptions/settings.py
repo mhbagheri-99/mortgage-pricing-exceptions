@@ -8,7 +8,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class Settings:
     database_url: str
-    demo_identity: bool  # the X-User-Id stand-in works only when this is true (design doc D6)
+    demo_identity: bool  # the X-User-Id stand-in works only when this is true (ADR 0004)
 
     @classmethod
     def from_env(cls, environ: Mapping[str, str] = os.environ) -> Settings:

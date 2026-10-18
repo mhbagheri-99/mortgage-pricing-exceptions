@@ -1,8 +1,9 @@
-"""Database backstops (design doc 4.2 and 7.4): each one refuses a bad row even when the code is bypassed.
+"""Database backstops (docs/architecture.md, "Data model"): each one refuses a bad row even when the code
+is bypassed.
 
 Every test writes straight into the tables with raw SQL, past the domain and the service, and expects the
 named constraint to refuse it, so the domain's copy of a rule and the database's copy cannot drift apart. The
-seeded requests (section 10): MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
+seeded requests: MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
 MA-1004 is rm.bram's, approved at r1 by rv.dana; MA-1005 is rm.anna's, declined at r1 by rv.erik.
 """
 
@@ -82,7 +83,7 @@ def test_an_application_holds_at_most_one_request(engine: Engine) -> None:
 
 @pytest.mark.req(id="N2")
 def test_the_create_conflict_target_stays_a_plain_unique_constraint(engine: Engine) -> None:
-    """Design doc D3, condition 1: the create's ON CONFLICT names uq_request_application, and the replay is
+    """ADR 0002: the create's ON CONFLICT names uq_request_application, and the replay is
     correct only while that is one unique constraint on the application id alone, over every row. A partial
     index, one with a WHERE clause, would let a second request in for every row it leaves out."""
     with engine.connect() as conn:
@@ -95,7 +96,7 @@ def test_the_create_conflict_target_stays_a_plain_unique_constraint(engine: Engi
             )
         ).all()
     assert [tuple(row) for row in found] == [("u", "UNIQUE (application_id)", True)]
-    # And the create's insert still names it as its conflict target (P5 review finding 3).
+    # And the create's insert still names it as its conflict target.
     create_insert = " ".join(str(requests.INSERT_REQUEST).split())
     assert "ON CONFLICT ON CONSTRAINT uq_request_application DO NOTHING" in create_insert
 

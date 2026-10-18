@@ -1,5 +1,6 @@
-"""The list's cursor (design doc 5.6). Clients treat it as opaque and pass it back unchanged. Inside, it is
-the last row's (created_at, id) as base64url JSON, so its format can change without breaking a client."""
+"""The list's cursor (docs/architecture.md, "Listing"). Clients treat it as opaque and pass it back
+unchanged. Inside, it is the last row's (created_at, id) as base64url JSON, so its format can change without
+breaking a client."""
 
 import base64
 import json

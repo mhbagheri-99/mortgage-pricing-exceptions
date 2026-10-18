@@ -29,7 +29,7 @@ def create_app(engine: Engine, clock: Clock, *, demo_identity: bool) -> FastAPI:
     if demo_identity:
         log.warning(
             "The demo identity is on: anyone who can reach this port can act as any seeded user "
-            "by sending X-User-Id. Never run it this way in production (design doc D6)."
+            "by sending X-User-Id. Never run it this way in production (ADR 0004)."
         )
     app = PricingExceptionsApp(title="Pricing exception service", version="0.1.0")
     problems.install(app)

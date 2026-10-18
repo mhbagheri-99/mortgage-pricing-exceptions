@@ -1,13 +1,13 @@
-"""Races and time limits (design doc 7.3, 7.4 and 7.10), through the real app on a real PostgreSQL.
+"""Races and time limits (ADR 0003), through the real app on a real PostgreSQL.
 
-The deterministic tests follow 7.10. Connection A, the test's own transaction, takes the row lock or inserts
+Deterministic tests: connection A, the test's own transaction, takes the row lock or inserts
 the duplicate, and records its process id. A thread sends the real API call, which blocks behind A. The
 barrier waits until PostgreSQL shows that call waiting on A. Then the test makes the winning change in A,
 commits or rolls back, and asserts the exact answer the waiting call got. A takes its lock with its own SQL,
-so taking the lock out of the service (the P5 red run) cannot take it out of A as well.
+so taking the lock out of the service cannot take it out of A as well.
 
 The two 8-thread bursts at the end are smoke tests: they assert counts only, never timing, and carry no
-requirement id. The seeded requests (section 10): MA-1002 is rm.anna's, pending at r1 at 20 bps; MA-1001 is
+requirement id. The seeded requests: MA-1002 is rm.anna's, pending at r1 at 20 bps; MA-1001 is
 free.
 """
 
@@ -50,7 +50,7 @@ from pricing_exceptions.domain.model import Actor, Outcome, PricingExceptionRequ
 
 SEEDED = (4, 7)  # requests and history events after the seed
 RESULT_SECONDS = 10  # how long a test waits for a thread's answer: past the 8 s budget, so N9 fails first
-BUDGET_SECONDS = 8  # N9: no call takes longer (design doc 7.3)
+BUDGET_SECONDS = 8  # N9: no call takes longer (docs/architecture.md, "Time limits")
 POOL_CONNECTIONS = 15  # every connection the engine's pool can give: pool_size 5 plus max_overflow 10
 
 ANNA = Actor("rm.anna", frozenset({Role.RELATIONSHIP_MANAGER}))
@@ -68,7 +68,7 @@ type Rule = Callable[[PricingExceptionRequest, datetime], tuple[PricingException
 
 
 class ConnectionA:
-    """The test's own transaction (design doc 7.10, step 1). The test decides when it commits or rolls back.
+    """The test's own transaction (step 1 of the pattern). The test decides when it commits or rolls back.
     Leaving the `with` block rolls back whatever is still open, so a failing test never leaves a call blocked
     behind A."""
 
@@ -143,7 +143,7 @@ def warning_lines(caplog: pytest.LogCaptureFixture) -> list[str]:
 def test_identical_creates_at_the_same_moment_give_one_request(
     client: TestClient, engine: Engine, clock: TickingClock
 ) -> None:
-    """Design doc D3: rm.anna's create waits on A's identical insert of MA-1001, then sees it commit. It
+    """ADR 0002: rm.anna's create waits on A's identical insert of MA-1001, then sees it commit. It
     inserts nothing and replays A's request with 201."""
     with ThreadPoolExecutor(1) as pool, ConnectionA(engine) as a:
         first = a.submit(ANNA, "MA-1001", TERMS, clock())
@@ -160,7 +160,7 @@ def test_identical_creates_at_the_same_moment_give_one_request(
 def test_a_create_waiting_on_one_that_rolls_back_creates_its_own(
     client: TestClient, engine: Engine, clock: TickingClock
 ) -> None:
-    """Design doc 7.4: when the first create rolls back, the waiting one proceeds normally and inserts its own
+    """ADR 0003: when the first create rolls back, the waiting one proceeds normally and inserts its own
     request: 201, not a replay, and still one request for MA-1001."""
     with ThreadPoolExecutor(1) as pool, ConnectionA(engine) as a:
         first = a.submit(ANNA, "MA-1001", TERMS, clock())
@@ -176,7 +176,7 @@ def test_a_create_waiting_on_one_that_rolls_back_creates_its_own(
 
 @pytest.mark.req(id="N3")
 def test_two_reviewers_decide_at_once(client: TestClient, engine: Engine, clock: TickingClock) -> None:
-    """Design doc 7.4: rv.dana's approval holds MA-1002's lock (A) while rv.erik's decline waits. When A
+    """ADR 0003: rv.dana's approval holds MA-1002's lock (A) while rv.erik's decline waits. When A
     commits, the decline runs the same rule on the newest row: 409 invalid-state showing rv.dana's decision,
     and exactly one decision is written."""
     with ThreadPoolExecutor(1) as pool, ConnectionA(engine) as a:
@@ -202,7 +202,7 @@ def test_two_reviewers_decide_at_once(client: TestClient, engine: Engine, clock:
 def test_an_approval_waiting_on_an_amendment_is_stale(
     client: TestClient, engine: Engine, clock: TickingClock
 ) -> None:
-    """Design doc 7.4: rm.anna's change to revision 2 holds the lock (A) while rv.dana approves revision 1,
+    """ADR 0003: rm.anna's change to revision 2 holds the lock (A) while rv.dana approves revision 1,
     the one she read. The approval waits, then finds revision 2: 409 stale-revision, and no decision is
     written."""
     amend = rules.Terms(30, NEW_REASON)
@@ -224,7 +224,7 @@ def test_an_approval_waiting_on_an_amendment_is_stale(
 def test_an_amendment_waiting_on_an_approval_is_refused(
     client: TestClient, engine: Engine, clock: TickingClock
 ) -> None:
-    """Design doc 7.4: rv.dana's approval of revision 1 holds the lock (A) while rm.anna changes revision 1.
+    """ADR 0003: rv.dana's approval of revision 1 holds the lock (A) while rm.anna changes revision 1.
     The change waits, then finds the request approved: 409 invalid-state. The approval stays bound to revision
     1 at 20 bps, which is what the mortgage process reads."""
     with ThreadPoolExecutor(1) as pool, ConnectionA(engine) as a:
@@ -249,7 +249,7 @@ def test_an_amendment_waiting_on_an_approval_is_refused(
 def test_a_change_waiting_on_a_decline_lands_as_a_resubmission(
     client: TestClient, engine: Engine, clock: TickingClock
 ) -> None:
-    """Design doc 7.4 and P4 decision 3: rv.erik's decline holds the lock (A) while rm.anna, still typing,
+    """ADR 0003: rv.erik's decline holds the lock (A) while rm.anna, still typing,
     sends a change to revision 1. Her change waits, then lands on the declined request as a resubmission at
     revision 2, and the decline stays in history. A read the clock after her call had started waiting; she
     reads it only once she holds the lock, so her time is later than the decline's."""
@@ -304,7 +304,7 @@ def test_a_wait_past_lock_timeout_is_503(
     body: dict,
     action: str,
 ) -> None:
-    """Design doc 7.3: a call that waits more than 2 s for a lock (lock_timeout) gives up with SQLSTATE 55P03
+    """Time limits: a call that waits more than 2 s for a lock (lock_timeout) gives up with SQLSTATE 55P03
     and answers 503 with Retry-After, well inside the 8 s budget. Nothing is written."""
     with ConnectionA(engine) as a:
         hold(a, clock())
@@ -326,7 +326,7 @@ def test_a_wait_past_lock_timeout_is_503(
 def test_a_wait_for_a_pooled_connection_past_pool_timeout_is_503(
     client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Design doc 7.3: with every connection the pool can give in use, a write waits 3 s (pool_timeout) for
+    """Time limits: with every connection the pool can give in use, a write waits 3 s (pool_timeout) for
     one, gives up with the pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s
     budget, with nothing written. The connections are held in an ExitStack, so a failing test still hands them
     all back to the next test."""
@@ -376,7 +376,7 @@ class StuckClock:
 def test_a_transaction_past_transaction_timeout_is_503(
     engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Design doc 7.3: the server ends a transaction that runs past 5 s (transaction_timeout), which frees the
+    """Time limits: the server ends a transaction that runs past 5 s (transaction_timeout), which frees the
     row for every other writer. The stuck call then answers 503 with Retry-After, inside the 8 s budget, and
     nothing is written."""
     clock = StuckClock(engine)

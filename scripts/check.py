@@ -28,7 +28,7 @@ from testfacts import facts  # noqa: E402
 
 # The last finished build phase. Every requirement whose first-tested phase is at or before it must have a
 # test. Moving it on needs your approval: this file is a guardrail file, so editing it asks you first.
-LAST_FINISHED_PHASE = 5
+LAST_FINISHED_PHASE = 7
 
 REQUIREMENT_ROW = re.compile(r"^\|\s*(FR-\d+|N\d+)\s*\|.*\|\s*P(\d)\s*\|$")
 FAST_TEST_DIRS = ("tests/domain", "tests/agentic")
@@ -397,7 +397,7 @@ def gates(mode: str) -> list[tuple[str, Callable[[], tuple[bool, str]]]]:
         ("ruff lint", lambda: tool(python, "-m", "ruff", "check", ".")),
         ("ruff format", lambda: tool(python, "-m", "ruff", "format", "--check", ".")),
         ("mypy", lambda: tool(python, "-m", "mypy")),
-        # No cache: a stale cache once reported an import that had already been removed (P1).
+        # No cache: a stale cache once reported an import that had already been removed.
         ("import-linter", lambda: tool(lint_imports, "--no-cache")),
         requirements,
         ("skip markers", lambda: listed(find_skip_markers(ROOT))),

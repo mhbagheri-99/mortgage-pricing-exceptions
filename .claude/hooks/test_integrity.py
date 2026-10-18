@@ -1,6 +1,6 @@
 """PreToolUse hook on Edit and Write: guard the tests against being weakened to make them pass.
 
-Rule (design doc D10 and 10.2):
+Rule (docs/agentic-sdlc.md):
 - an edit that adds a skip or xfail marker or call is refused (exit code 2; the agent is told why);
 - an edit that removes an assert or pytest.raises, a test function or a requirement marker asks the human;
 - everything else passes silently.

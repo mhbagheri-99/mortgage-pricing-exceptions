@@ -1,7 +1,7 @@
-"""Revise (FR-2): the requester changes the terms as a new numbered revision (design doc D2, 5.3 and 5.5),
+"""Revise (FR-2): the requester changes the terms as a new numbered revision (ADR 0001),
 through the real app on a real PostgreSQL.
 
-The seeded requests (section 10): MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
+The seeded requests: MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
 MA-1004 is rm.bram's, approved at r1 by rv.dana; MA-1005 is rm.anna's, declined at r1 by rv.erik.
 """
 
@@ -47,8 +47,8 @@ def test_amend_makes_the_next_revision(client: TestClient, engine: Engine) -> No
 @pytest.mark.req(id="FR-2")
 def test_resubmit_clears_decision_keeps_history(client: TestClient, engine: Engine) -> None:
     """A declined request takes new terms as a resubmission: pending again at the next revision, the row's
-    decision columns cleared, and the decline still in history and in latest_decision (design doc 4.2,
-    5.2)."""
+    decision columns cleared, and the decline still in history and in latest_decision
+    (ADR 0001)."""
     response = client.post(
         revisions(1005), json=revise_body(1, 30, RESUBMIT_REASON), headers=as_user("rm.anna")
     )
@@ -101,7 +101,7 @@ def test_only_the_requester_revises(client: TestClient, engine: Engine, user: st
 @pytest.mark.req(id="FR-2")
 def test_a_stale_revision_is_409_with_the_revision_sent(client: TestClient, engine: Engine) -> None:
     """rm.bram changes MA-1003 from revision 1, but it is at revision 2: his change must not overwrite one he
-    never saw (design doc 5.3)."""
+    never saw (ADR 0001)."""
     response = client.post(revisions(1003), json=revise_body(1), headers=as_user("rm.bram"))
     assert response.status_code == 409
     problem = response.json()
@@ -145,7 +145,7 @@ def test_a_stale_revision_is_409_with_the_revision_sent(client: TestClient, engi
 def test_revise_checks_run_in_order(
     client: TestClient, engine: Engine, user: str | None, path: str, body: dict, status: int, problem: str
 ) -> None:
-    """Design doc 5.5 and P4 decision 1: identity (401), shape and values (422), the role (403), the lock
+    """Order of checks: identity (401), shape and values (422), the role (403), the lock
     (404), the requester (403), the status (409), then the revision (409). The first check that fails
     answers."""
     response = client.post(path, json=body, headers=as_user(user) if user else {})

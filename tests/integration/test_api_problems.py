@@ -1,6 +1,6 @@
-"""The error format (RFC 9457 problem details, design doc D7 and 5.5) and the log lines (7.9).
+"""The error format (RFC 9457 problem details; docs/architecture.md, "Errors") and the log lines ("Logging").
 
-Every 409 carries `current`, the request as it is now (5.3). Every refused write logs exactly one WARNING
+Every 409 carries `current`, the request as it is now. Every refused write logs exactly one WARNING
 line, and no log line ever holds a reason, a comment or a request body.
 """
 
@@ -28,8 +28,8 @@ from pricing_exceptions.api.app import create_app
 
 PRIVATE_TEXT = "Borrower note 7f3a: never log this"
 
-# One row per 409 the API can give: (problem type, caller, path, body, the request in conflict). P3 has
-# request-exists; P4 adds invalid-state and stale-revision.
+# One row per 409 the API can give: (problem type, caller, path, body, the request in conflict), for
+# request-exists, invalid-state and stale-revision.
 CONFLICTS = [
     pytest.param(
         "request-exists", "rm.anna", REQUESTS, create_body("MA-1002", 30), 1002, id="request-exists"
@@ -67,7 +67,7 @@ def test_every_409_carries_current(
     assert problem["title"]
     assert problem["detail"]
     current = client.get(f"{REQUESTS}/{seeded_id(number)}", headers=as_user("rv.dana")).json()
-    del current["history"], current["permissions"]  # a 409's current is the request alone (5.3, P7)
+    del current["history"], current["permissions"]  # a 409's current is the request alone
     assert problem["current"] == current
 
 
@@ -246,8 +246,7 @@ def test_a_refused_revise_or_decide_logs_one_warning_line_without_the_body(
 def test_revise_and_decide_log_one_info_line_each(
     client: TestClient, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """One INFO line per state change, after its commit: who, what and which revision, never the text
-    (7.9)."""
+    """One INFO line per state change, after its commit: who, what and which revision, never the text."""
     caplog.set_level(logging.INFO, logger="pricing_exceptions")
     revised = client.post(
         revisions(1003), json=revise_body(2, reason=PRIVATE_TEXT), headers=as_user("rm.bram")
@@ -286,7 +285,7 @@ def test_an_unexpected_database_error_is_a_500_that_logs_no_values(
     engine: Engine, clock: TickingClock, caplog: pytest.LogCaptureFixture
 ) -> None:
     """A bug that breaks a database rule: the exception's text holds the bound values and PostgreSQL's
-    failing row, so neither may reach a log line (P3 review finding 3)."""
+    failing row, so neither may reach a log line."""
     app = create_app(engine, clock, demo_identity=True)
 
     @app.post("/broken-write")

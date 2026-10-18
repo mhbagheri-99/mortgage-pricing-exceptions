@@ -8,7 +8,8 @@ enforce the important ones; this file explains them.
 A small service for mortgage pricing exception requests: a relationship manager asks for a discount on the
 standard rate of one mortgage application, a reviewer approves or declines it, and the mortgage application
 process reads the approved discount. Python 3.15, FastAPI with sync endpoints, SQLAlchemy Core with hand-written
-SQL, PostgreSQL 18.
+SQL, PostgreSQL 18. The decisions are in `docs/adr/`; read `docs/architecture.md`, "Operating and changing it
+safely", before changing behaviour.
 
 ## Commands
 

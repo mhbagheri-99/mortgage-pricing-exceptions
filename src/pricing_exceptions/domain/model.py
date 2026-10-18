@@ -1,7 +1,8 @@
 """What the domain is made of: the request, the decision on it, its history events and who acts. Data only.
 
-Enumerations are `StrEnum`s that mirror the text CHECK lists in the migration (design doc 4.2). The reason and
-comment are left out of every repr, so a stray log of an object never leaks them (design doc 7.9).
+Enumerations are `StrEnum`s that mirror the text CHECK lists in the migration (docs/architecture.md,
+"Data model"). The reason and comment are left out of every repr, so a stray log of an object never leaks
+them (docs/architecture.md, "Logging").
 """
 
 from collections.abc import Callable
@@ -35,7 +36,7 @@ class Outcome(StrEnum):
 
 
 class EventType(StrEnum):
-    """One per transition in the state machine (design doc 6.3)."""
+    """One per transition in the state machine (ADR 0001)."""
 
     SUBMITTED = "SUBMITTED"
     AMENDED = "AMENDED"
@@ -54,7 +55,8 @@ class Actor:
 
 @dataclass(frozen=True, slots=True)
 class User:
-    """A user as the demo's acting-as switcher lists them: id, display name and roles (design doc 4.1)."""
+    """A user as the demo's acting-as switcher lists them: id, display name and roles
+    (docs/architecture.md, "Data model")."""
 
     id: str
     display_name: str
@@ -63,7 +65,8 @@ class User:
 
 @dataclass(frozen=True, slots=True)
 class Decision:
-    """The decision on the current revision. Its outcome is the request's status (design doc 4.1)."""
+    """The decision on the current revision. Its outcome is the request's status
+    (docs/architecture.md, "Data model")."""
 
     decided_by: str
     decided_at: datetime
@@ -106,7 +109,8 @@ class RequestEvent:
 @dataclass(frozen=True, slots=True)
 class RequestRecord:
     """A request with its whole history, oldest event first: every response that shows a request is built
-    from one of these, read in one statement by `db.requests.read_request()` (design doc 6.5)."""
+    from one of these, read in one statement by `db.requests.read_request()`
+    (docs/architecture.md, "Operating and changing it safely")."""
 
     request: PricingExceptionRequest
     history: tuple[RequestEvent, ...]
