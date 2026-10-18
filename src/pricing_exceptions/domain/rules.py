@@ -123,6 +123,23 @@ def decide(
     return decided, event
 
 
+def check_role_to_decide(actor: Actor) -> None:
+    """403 unless the actor is a reviewer."""
+    raise NotImplementedError
+
+
+def check_role_to_revise(actor: Actor) -> None:
+    """403 unless the actor is a relationship manager."""
+    raise NotImplementedError
+
+
+def revise(
+    request: PricingExceptionRequest, actor: Actor, revision: int, terms: Terms, now: datetime
+) -> tuple[PricingExceptionRequest, RequestEvent]:
+    """Change the terms of a request as its next revision."""
+    raise NotImplementedError
+
+
 def submit(
     actor: Actor, application_id: str, terms: Terms, request_id: UUID, now: datetime
 ) -> tuple[PricingExceptionRequest, RequestEvent]:

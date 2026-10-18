@@ -9,7 +9,18 @@ import logging
 from uuid import uuid4
 
 import pytest
-from calls import PROBLEMS, REQUESTS, TickingClock, as_user, create_body, seeded_id
+from calls import (
+    PROBLEMS,
+    REQUESTS,
+    TickingClock,
+    as_user,
+    create_body,
+    decide_body,
+    decisions,
+    revise_body,
+    revisions,
+    seeded_id,
+)
 from fastapi.testclient import TestClient
 from sqlalchemy import Engine, text
 
@@ -22,6 +33,23 @@ PRIVATE_TEXT = "Borrower note 7f3a: never log this"
 CONFLICTS = [
     pytest.param(
         "request-exists", "rm.anna", REQUESTS, create_body("MA-1002", 30), 1002, id="request-exists"
+    ),
+    pytest.param(
+        "invalid-state", "rm.bram", revisions(1004), revise_body(1), 1004, id="invalid-state, revise"
+    ),
+    pytest.param(
+        "invalid-state",
+        "rv.erik",
+        decisions(1004),
+        decide_body(1, "DECLINED", "Too high"),
+        1004,
+        id="invalid-state, decide",
+    ),
+    pytest.param(
+        "stale-revision", "rm.bram", revisions(1003), revise_body(1), 1003, id="stale-revision, revise"
+    ),
+    pytest.param(
+        "stale-revision", "rv.dana", decisions(1003), decide_body(1), 1003, id="stale-revision, decide"
     ),
 ]
 
@@ -138,6 +166,101 @@ def test_reads_and_successes_log_no_warning_and_a_change_logs_one_info_line(
     ]
     request_id = created.json()["id"]
     assert infos == [f"state change: request={request_id} actor=rm.anna event=SUBMITTED revision=1"]
+    assert PRIVATE_TEXT not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("user", "path", "body", "status", "line"),
+    [
+        pytest.param(
+            "rm.bram",
+            revisions(1002),
+            revise_body(1, reason=PRIVATE_TEXT),
+            403,
+            f"actor=rm.bram action=revise request={seeded_id(1002)} problem=forbidden status=403",
+            id="403 not the requester",
+        ),
+        pytest.param(
+            "svc.mortgage",
+            decisions(9999),
+            decide_body(1, "DECLINED", PRIVATE_TEXT),
+            403,
+            f"actor=svc.mortgage action=decide request={seeded_id(9999)} problem=forbidden status=403",
+            id="403 before the lock",
+        ),
+        pytest.param(
+            "rv.dana",
+            decisions(9999),
+            decide_body(1, "DECLINED", PRIVATE_TEXT),
+            404,
+            f"actor=rv.dana action=decide request={seeded_id(9999)} problem=about:blank status=404",
+            id="404",
+        ),
+        pytest.param(
+            "rm.bram",
+            revisions(1004),
+            revise_body(1, reason=PRIVATE_TEXT),
+            409,
+            f"actor=rm.bram action=revise request={seeded_id(1004)} problem=invalid-state status=409",
+            id="409 invalid-state",
+        ),
+        pytest.param(
+            "rv.dana",
+            decisions(1003),
+            decide_body(1, "DECLINED", PRIVATE_TEXT),
+            409,
+            f"actor=rv.dana action=decide request={seeded_id(1003)} problem=stale-revision status=409",
+            id="409 stale-revision",
+        ),
+        pytest.param(
+            "rv.dana",
+            decisions(1003),
+            decide_body(2, "DECLINED", PRIVATE_TEXT + chr(0)),
+            422,
+            f"actor=rv.dana action=decide request={seeded_id(1003)} problem=validation-failed status=422",
+            id="422",
+        ),
+    ],
+)
+def test_a_refused_revise_or_decide_logs_one_warning_line_without_the_body(
+    client: TestClient,
+    caplog: pytest.LogCaptureFixture,
+    user: str,
+    path: str,
+    body: dict[str, object],
+    status: int,
+    line: str,
+) -> None:
+    caplog.set_level(logging.INFO, logger="pricing_exceptions")
+    response = client.post(path, json=body, headers=as_user(user))
+    assert response.status_code == status
+    assert warnings_from_the_api(caplog) == [f"refused write: {line}"]
+    assert PRIVATE_TEXT not in caplog.text
+
+
+def test_revise_and_decide_log_one_info_line_each(
+    client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One INFO line per state change, after its commit: who, what and which revision, never the text
+    (7.9)."""
+    caplog.set_level(logging.INFO, logger="pricing_exceptions")
+    revised = client.post(
+        revisions(1003), json=revise_body(2, reason=PRIVATE_TEXT), headers=as_user("rm.bram")
+    )
+    decided = client.post(
+        decisions(1003), json=decide_body(3, "DECLINED", PRIVATE_TEXT), headers=as_user("rv.dana")
+    )
+    assert (revised.status_code, decided.status_code) == (200, 200)
+    assert warnings_from_the_api(caplog) == []
+    infos = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name.startswith("pricing_exceptions") and record.levelno == logging.INFO
+    ]
+    assert infos == [
+        f"state change: request={seeded_id(1003)} actor=rm.bram event=AMENDED revision=3",
+        f"state change: request={seeded_id(1003)} actor=rv.dana event=DECLINED revision=3",
+    ]
     assert PRIVATE_TEXT not in caplog.text
 
 
