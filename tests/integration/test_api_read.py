@@ -122,6 +122,27 @@ def test_the_mortgage_process_cannot_read_requests(client: TestClient, path: str
     assert (response.status_code, response.json()["type"]) == (403, PROBLEMS + "forbidden")
 
 
+@pytest.mark.req(id="FR-5")
+@pytest.mark.parametrize(
+    ("user", "path", "params", "status", "problem"),
+    [
+        pytest.param(None, f"{REQUESTS}/not-an-id", {}, 401, "unauthenticated", id="identity before shape"),
+        pytest.param("svc.mortgage", f"{REQUESTS}/not-an-id", {}, 422, "validation-failed", id="shape first"),
+        pytest.param("svc.mortgage", REQUESTS, {"limit": "0"}, 422, "validation-failed", id="limit first"),
+        pytest.param(
+            "svc.mortgage", REQUESTS, {"cursor": "not a cursor!"}, 422, "validation-failed", id="cursor first"
+        ),
+        pytest.param("svc.mortgage", f"{REQUESTS}/{uuid4()}", {}, 403, "forbidden", id="role before lookup"),
+    ],
+)
+def test_read_checks_run_in_order(
+    client: TestClient, user: str | None, path: str, params: dict[str, str], status: int, problem: str
+) -> None:
+    """Identity (401), then shape and values (422), then the staff role (403), then the lookup (404)."""
+    response = client.get(path, params=params, headers=as_user(user) if user else {})
+    assert (response.status_code, response.json()["type"]) == (status, PROBLEMS + problem)
+
+
 def walk(client: TestClient, limit: int, **params: str) -> list[list[dict[str, object]]]:
     """Follow next_cursor from the first page until it is null, as any client must; return every page."""
     pages: list[list[dict[str, object]]] = []
@@ -218,6 +239,16 @@ AT = "2026-10-15T09:00:00+00:00"
             {"cursor": as_cursor({"created_at": "2026-10-15T09:00:00", "id": seeded_id(1002)})},
             "cursor",
             id="no time zone",
+        ),
+        pytest.param(
+            {"cursor": as_cursor({"created_at": "2026-10-15T09:00:00+20:00", "id": seeded_id(1002)})},
+            "cursor",
+            id="an offset of 20 hours",
+        ),
+        pytest.param(
+            {"cursor": as_cursor({"created_at": "2026-10-15T10:00:00+01:00", "id": seeded_id(1002)})},
+            "cursor",
+            id="not UTC, so not a cursor this service issued",
         ),
         pytest.param({"cursor": as_cursor({"created_at": AT, "id": "not-a-uuid"})}, "cursor", id="id"),
         pytest.param({"cursor": as_cursor({"created_at": 5, "id": 7})}, "cursor", id="numbers"),

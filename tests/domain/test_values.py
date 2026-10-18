@@ -45,6 +45,7 @@ def broken_fields(build: Callable[[], object]) -> set[str]:
         pytest.param(25, "\t\r\n", {"reason"}, id="reason of a tab and newlines"),
         pytest.param(25, chr(0x00A0) + chr(0x2003), {"reason"}, id="reason of no-break and em spaces"),
         pytest.param(25, "Retention" + chr(0) + "offer", {"reason"}, id="NUL, which PostgreSQL text refuses"),
+        pytest.param(25, "Retention " + chr(0xD800), {"reason"}, id="a lone surrogate: not UTF-8"),
         pytest.param(0, "  ", {"discount_bps", "reason"}, id="both broken, both reported"),
     ],
 )
@@ -68,6 +69,7 @@ def test_terms_bounds(discount: int, reason: str, broken: set[str]) -> None:
         pytest.param(Outcome.DECLINED, " \n ", {"comment"}, id="decline with a blank comment"),
         pytest.param(Outcome.DECLINED, "x" * 1001, {"comment"}, id="decline, comment of 1001 characters"),
         pytest.param(Outcome.APPROVED, "Within" + chr(0), {"comment"}, id="approve, comment with a NUL"),
+        pytest.param(Outcome.DECLINED, "Up to" + chr(0xDC00), {"comment"}, id="decline, a lone surrogate"),
     ],
 )
 def test_comment_rules(outcome: Outcome, comment: str | None, broken: set[str]) -> None:

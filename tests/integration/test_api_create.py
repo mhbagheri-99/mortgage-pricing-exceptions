@@ -3,6 +3,7 @@
 The seeded requests (section 10) give a taken application for every conflict: MA-1002 is rm.anna's, at 20 bps.
 """
 
+import logging
 import time
 
 import pytest
@@ -16,6 +17,7 @@ from pricing_exceptions.db.engine import make_engine
 SEEDED = (4, 7)  # requests and history events after the seed
 MA_1002_REASON = "Retention: the borrower holds a competing offer"
 UNREACHABLE = "postgresql+psycopg://nobody:nothing@192.0.2.1:5432/nothing"  # reserved; never answers
+PRIVATE_TEXT = "Borrower note 7f3a: never log this"
 
 
 @pytest.mark.req(id="FR-1")
@@ -212,14 +214,15 @@ def test_strict_json(client: TestClient, engine: Engine, body: dict[str, object]
 
 
 @pytest.mark.req(id="FR-1")
+@pytest.mark.parametrize(
+    "raw",
+    [b'{"application_id": "MA-1001",', b'{"reason": "Retention \xff"}'],
+    ids=["cut short", "not UTF-8"],
+)
 @pytest.mark.parametrize("headers", [as_user("rm.anna"), {}], ids=["with an identity", "without one"])
-def test_unparseable_json_is_400(client: TestClient, headers: dict[str, str]) -> None:
+def test_unparseable_json_is_400(client: TestClient, headers: dict[str, str], raw: bytes) -> None:
     """FastAPI reads the JSON before the identity (P1 spike step 7), so 400 comes even before 401."""
-    response = client.post(
-        REQUESTS,
-        content=b'{"application_id": "MA-1001",',
-        headers={**headers, "Content-Type": "application/json"},
-    )
+    response = client.post(REQUESTS, content=raw, headers={**headers, "Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.headers["Content-Type"] == "application/problem+json"
     assert response.json()["type"] == PROBLEMS + "malformed-request"
@@ -258,13 +261,56 @@ def test_create_checks_run_in_order(
     assert (response.status_code, response.json()["type"]) == (status, PROBLEMS + problem)
 
 
+@pytest.mark.req(id="FR-1")
+@pytest.mark.parametrize(
+    ("raw", "pointer"),
+    [
+        pytest.param(
+            rb'{"application_id": "MA-1001", "discount_bps": 25, "reason": "Retention \ud800"}',
+            "#/reason",
+            id="a lone surrogate in the reason",
+        ),
+        pytest.param(
+            rb'{"application_id": "MA-1001", "discount_bps": 25, "reason": "Retention", "\ud800": 1}',
+            "#",
+            id="a lone surrogate as a field name, which Pydantic refuses for the whole body",
+        ),
+    ],
+)
+def test_text_that_is_not_valid_unicode_is_422_not_500(
+    client: TestClient, engine: Engine, raw: bytes, pointer: str
+) -> None:
+    """JSON may escape half of a surrogate pair, which UTF-8 cannot encode: PostgreSQL would refuse it as a
+    500, and so would the error response that names the field (P3 review finding 1)."""
+    response = client.post(
+        REQUESTS, content=raw, headers={**as_user("rm.anna"), "Content-Type": "application/json"}
+    )
+    assert response.status_code == 422
+    problem = response.json()
+    assert problem["type"] == PROBLEMS + "validation-failed"
+    assert [error["pointer"] for error in problem["errors"]] == [pointer]
+    assert stored(engine) == SEEDED
+
+
 @pytest.mark.req(id="N8")
-def test_a_create_with_the_database_down_is_refused_with_503(clock: TickingClock) -> None:
+def test_a_create_with_the_database_down_is_refused_with_503(
+    clock: TickingClock, caplog: pytest.LogCaptureFixture
+) -> None:
     down = TestClient(create_app(make_engine(UNREACHABLE), clock, demo_identity=True))
+    caplog.clear()  # only what the call logs, not the start-up warning about the demo identity
+    caplog.set_level(logging.INFO, logger="pricing_exceptions")
     started = time.monotonic()
-    response = down.post(REQUESTS, json=create_body(), headers=as_user("rm.anna"))
+    response = down.post(REQUESTS, json=create_body(reason=PRIVATE_TEXT), headers=as_user("rm.anna"))
     elapsed = time.monotonic() - started
     assert response.status_code == 503
     assert response.headers["Retry-After"] == "1"
     assert response.json()["type"] == PROBLEMS + "temporarily-unavailable"
     assert elapsed < 6, f"an unreachable database must fail fast (connect limit 3 s), took {elapsed:.0f} s"
+    warnings = [
+        record.getMessage()
+        for record in caplog.records
+        if record.name.startswith("pricing_exceptions") and record.levelno == logging.WARNING
+    ]
+    assert len(warnings) == 1
+    assert warnings[0].startswith("database unavailable: action=create OperationalError sqlstate=")
+    assert PRIVATE_TEXT not in caplog.text

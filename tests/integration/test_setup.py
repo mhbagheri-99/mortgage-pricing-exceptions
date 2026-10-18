@@ -59,3 +59,4 @@ def test_engine_settings_in_effect(engine: Engine) -> None:
         shown = {name: conn.execute(text(sql)).scalar_one() for name, (sql, _) in SETTINGS.items()}
     assert shown == {name: expected for name, (_, expected) in SETTINGS.items()}
     assert engine.pool.timeout() == 3
+    assert engine.hide_parameters, "an error message must never carry a bound value, such as a reason"

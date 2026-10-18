@@ -6,11 +6,12 @@ line, and no log line ever holds a reason, a comment or a request body.
 
 import json
 import logging
+from uuid import uuid4
 
 import pytest
 from calls import PROBLEMS, REQUESTS, TickingClock, as_user, create_body, seeded_id
 from fastapi.testclient import TestClient
-from sqlalchemy import Engine
+from sqlalchemy import Engine, text
 
 from pricing_exceptions.api.app import create_app
 
@@ -151,6 +152,34 @@ def test_a_bug_is_a_500_problem_without_the_stack_trace(engine: Engine, clock: T
     assert response.status_code == 500
     assert response.headers["Content-Type"] == "application/problem+json"
     assert response.json() == {"type": "about:blank", "title": "Internal Server Error", "status": 500}
+
+
+def test_an_unexpected_database_error_is_a_500_that_logs_no_values(
+    engine: Engine, clock: TickingClock, caplog: pytest.LogCaptureFixture
+) -> None:
+    """A bug that breaks a database rule: the exception's text holds the bound values and PostgreSQL's
+    failing row, so neither may reach a log line (P3 review finding 3)."""
+    app = create_app(engine, clock, demo_identity=True)
+
+    @app.post("/broken-write")
+    def broken_write() -> None:
+        with engine.begin() as conn:  # 0 bps breaks ck_request_discount
+            conn.execute(
+                text(
+                    "INSERT INTO pricing_exception_requests (id, application_id, requested_by, status, "
+                    "revision_no, discount_bps, reason, created_at) VALUES (:id, 'MA-1008', 'rm.anna', "
+                    "'PENDING_REVIEW', 1, 0, :reason, :created_at)"
+                ),
+                {"id": uuid4(), "reason": PRIVATE_TEXT, "created_at": clock()},
+            )
+
+    caplog.set_level(logging.INFO)
+    response = TestClient(app).post("/broken-write")  # the default client re-raises anything that escapes
+    assert response.status_code == 500
+    assert response.json() == {"type": "about:blank", "title": "Internal Server Error", "status": 500}
+    errors = [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR]
+    assert errors == ["unexpected database error: action=broken_write IntegrityError sqlstate=23514"]
+    assert PRIVATE_TEXT not in caplog.text
 
 
 def test_an_unknown_path_is_a_404_problem(client: TestClient) -> None:
