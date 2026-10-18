@@ -28,7 +28,9 @@ SQL, PostgreSQL 18.
 - One request per application: `uq_request_application` stays a plain, non-partial unique constraint.
 - READ COMMITTED stays pinned on the engine. Lock a request by primary key only, with `FOR NO KEY UPDATE`.
 - No network calls while a row lock is held.
-- Every response that shows a request is built by `db.requests.read_request()`.
+- Every response that shows a request with its history (GET, create and its replay, revise, decide), and every
+  409's `current`, is built by `db.requests.read_request()`. The list rows and the approved discount have their
+  own queries, mapped by the same row function.
 - Times come from the injected clock, as `datetime.now(UTC)`. Money is integer basis points.
 - Requests are checked in a fixed order. A change: JSON (400), identity (401), shape and values (422), the role
   (403, before any database access), then the lock (404), ownership or four-eyes (403), status (409

@@ -19,7 +19,9 @@ Check every change against these invariants. Report real violations and real ris
 4. Isolation: READ COMMITTED stays pinned on the engine.
 5. Locking: a request is locked by primary key only, with `FOR NO KEY UPDATE`, and nothing else in its WHERE
    clause. No network call happens while the lock is held.
-6. Responses: every response that shows a request comes from `db.requests.read_request()`.
+6. Responses: every response that shows a request with its history (GET, create and its replay, revise,
+   decide), and every 409's `current`, comes from `db.requests.read_request()`. The list rows and the approved
+   discount have their own queries, mapped by the same row function.
 7. Decisions: the decision columns match the status; a resubmission clears them; history keeps every decision.
 8. Order of checks. A change: JSON (400), identity (401), shape and values (422), the role (403, before any
    database access), then the lock (404), ownership or four-eyes (403), status (409 `invalid-state`), revision
