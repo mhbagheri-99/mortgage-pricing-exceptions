@@ -165,7 +165,11 @@ def test_reads_and_successes_log_no_warning_and_a_change_logs_one_info_line(
         if record.name.startswith("pricing_exceptions") and record.levelno == logging.INFO
     ]
     request_id = created.json()["id"]
-    assert infos == [f"state change: request={request_id} actor=rm.anna event=SUBMITTED revision=1"]
+    # A replay changes nothing, so it is no state change; its own line shows that upstream systems retry.
+    assert infos == [
+        f"state change: request={request_id} actor=rm.anna event=SUBMITTED revision=1",
+        f"replayed create: request={request_id} actor=rm.anna",
+    ]
     assert PRIVATE_TEXT not in caplog.text
 
 

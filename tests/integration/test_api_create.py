@@ -148,6 +148,24 @@ def test_a_different_create_for_a_taken_application_is_409(
     assert stored(engine) == SEEDED
 
 
+@pytest.mark.req(id="FR-6")
+@pytest.mark.parametrize(
+    ("number", "user"),
+    [
+        pytest.param(1004, "rm.bram", id="approved, sent by its own requester"),
+        pytest.param(1002, "rm.bram", id="pending, another manager's"),
+    ],
+)
+def test_request_exists_states_the_fact_without_advice_that_can_fail(
+    client: TestClient, number: int, user: str
+) -> None:
+    """Revising is no way out of an approved request, nor of another manager's: the detail says only that the
+    application has a request, and `current` shows which."""
+    response = client.post(REQUESTS, json=create_body(f"MA-{number}", 30), headers=as_user(user))
+    assert response.status_code == 409
+    assert response.json()["detail"] == f"Mortgage application MA-{number} already has a request."
+
+
 @pytest.mark.req(id="N5")
 @pytest.mark.parametrize("user", ["rv.dana", "rv.erik", "svc.mortgage"])
 def test_only_a_relationship_manager_creates(client: TestClient, engine: Engine, user: str) -> None:
@@ -222,6 +240,34 @@ def test_strict_json(client: TestClient, engine: Engine, body: dict[str, object]
     assert problem["type"] == PROBLEMS + "validation-failed"
     assert [error["pointer"] for error in problem["errors"]] == [pointer]
     assert stored(engine) == SEEDED
+
+
+APPLICATION_ID_RULE = "must be 1 to 64 letters, digits, dots, underscores or hyphens"
+
+
+@pytest.mark.req(id="FR-1")
+@pytest.mark.parametrize(
+    "application_id",
+    ["MA-1001 ", "", "M" * 65],
+    ids=["a trailing space", "empty", "65 characters"],
+)
+def test_a_malformed_application_id_is_explained_in_words(
+    client: TestClient, engine: Engine, application_id: str
+) -> None:
+    """The rule in words a person can act on, not the pattern it is checked with."""
+    response = client.post(REQUESTS, json=create_body(application_id), headers=as_user("rm.anna"))
+    assert response.status_code == 422
+    assert response.json()["errors"] == [{"pointer": "#/application_id", "detail": APPLICATION_ID_RULE}]
+    assert stored(engine) == SEEDED
+
+
+@pytest.mark.req(id="FR-4")
+def test_a_malformed_application_id_in_the_path_is_explained_in_words(client: TestClient) -> None:
+    response = client.get(
+        "/api/v1/mortgage-applications/MA%201001/approved-discount", headers=as_user("svc.mortgage")
+    )
+    assert response.status_code == 422
+    assert response.json()["errors"] == [{"parameter": "application_id", "detail": APPLICATION_ID_RULE}]
 
 
 @pytest.mark.req(id="FR-1")
