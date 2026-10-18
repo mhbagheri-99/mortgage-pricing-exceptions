@@ -1,0 +1,93 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "permissions": {
+    "ask": [
+      "Edit(/.claude/**)",
+      "Edit(/scripts/check.py)",
+      "Edit(/.github/**)",
+      "Edit(/pyproject.toml)",
+      "Edit(/docs/requirements.md)",
+      "Bash(git commit *)",
+      "Bash(git * commit *)",
+      "Bash(git push *)",
+      "Bash(git * push *)",
+      "Bash(docker compose down -v*)",
+      "Bash(uv add *)",
+      "Bash(uv remove *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git * commit *)",
+      "PowerShell(git push *)",
+      "PowerShell(git * push *)",
+      "PowerShell(docker compose down -v*)",
+      "PowerShell(uv add *)",
+      "PowerShell(uv remove *)"
+    ],
+    "deny": [
+      "Bash(git push --force*)",
+      "Bash(git push * --force*)",
+      "Bash(git push -f*)",
+      "Bash(git push * -f*)",
+      "Bash(git push * +*)",
+      "Bash(git * push *--force*)",
+      "Bash(git * push * -f*)",
+      "Bash(git * push * +*)",
+      "Bash(git * push -f*)",
+      "Bash(git * push +*)",
+      "Bash(git * reset *--hard*)",
+      "Bash(git * add * -f*)",
+      "Bash(git * add -f*)",
+      "Bash(git * add *--force*)",
+      "Bash(git reset --hard*)",
+      "Bash(git reset * --hard*)",
+      "Bash(git add -f*)",
+      "Bash(git add * -f*)",
+      "Bash(git add --force*)",
+      "Bash(git add * --force*)",
+      "PowerShell(git push --force*)",
+      "PowerShell(git push * --force*)",
+      "PowerShell(git push -f*)",
+      "PowerShell(git push * -f*)",
+      "PowerShell(git push * +*)",
+      "PowerShell(git * push *--force*)",
+      "PowerShell(git * push * -f*)",
+      "PowerShell(git * push * +*)",
+      "PowerShell(git * push -f*)",
+      "PowerShell(git * push +*)",
+      "PowerShell(git * reset *--hard*)",
+      "PowerShell(git * add * -f*)",
+      "PowerShell(git * add -f*)",
+      "PowerShell(git * add *--force*)",
+      "PowerShell(git reset --hard*)",
+      "PowerShell(git reset * --hard*)",
+      "PowerShell(git add -f*)",
+      "PowerShell(git add * -f*)",
+      "PowerShell(git add --force*)",
+      "PowerShell(git add * --force*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --frozen --project \"$CLAUDE_PROJECT_DIR\" python \"$CLAUDE_PROJECT_DIR/.claude/hooks/test_integrity.py\"",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "uv run --frozen --project \"$CLAUDE_PROJECT_DIR\" python \"$CLAUDE_PROJECT_DIR/.claude/hooks/finish_check.py\"",
+            "timeout": 300
+          }
+        ]
+      }
+    ]
+  }
+}

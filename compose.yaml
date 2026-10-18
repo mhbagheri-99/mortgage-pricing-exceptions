@@ -1,0 +1,32 @@
+# docker compose up --build    then open http://localhost:8000/docs
+# docker compose down -v        resets everything, including the database
+services:
+  db:
+    image: postgres:18
+    environment:
+      POSTGRES_USER: pricing
+      POSTGRES_PASSWORD: pricing # a local throwaway database, not a secret
+      POSTGRES_DB: pricing
+    volumes:
+      - pgdata:/var/lib/postgresql # PostgreSQL 18 keeps its data one level up from earlier versions
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pricing -d pricing"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  api:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://pricing:pricing@db:5432/pricing
+      DEMO_IDENTITY: "true" # the X-User-Id stand-in; every call is 401 without it
+    ports:
+      # Loopback only: with the demo identity on, anyone who can reach the port can act as any user.
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
