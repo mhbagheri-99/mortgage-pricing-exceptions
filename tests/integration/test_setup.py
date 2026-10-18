@@ -1,5 +1,5 @@
-"""Setup checks (design doc 7.10): the app reports database health, the seed can run twice, and the engine's
-isolation level and time limits are really in effect on a pooled connection."""
+"""Setup checks (docs/architecture.md, "Testing"): the app reports database health, the seed can run twice,
+and the engine's isolation level and time limits are really in effect on a pooled connection."""
 
 import time
 

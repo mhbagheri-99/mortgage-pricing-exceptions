@@ -1,4 +1,4 @@
-"""Every response that shows a request also says what its caller may do to it (P7, design doc 10.2).
+"""Every response that shows a request also says what its caller may do to it.
 
 `permissions` holds one entry per action. When the caller may not, it names the problem type and the detail
 the action would be refused with, so a client can show why instead of offering a button that can only fail.

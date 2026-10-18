@@ -1,9 +1,10 @@
-"""The value objects check themselves when built (design doc 3.4, 5.5 step 4): a bad value is a 422 before any
-lock is taken. Text is checked but never rewritten: it is kept exactly as sent, so a retried create compares
-equal (5.7). The limits are our assumptions; the brief sets none.
+"""The value objects check themselves when built (docs/architecture.md, "Order of checks"): a bad
+value is a 422 before any lock is taken. Text is checked but never rewritten: it is kept exactly as sent, so a
+retried create compares equal (ADR 0002). The limits are our assumptions (README, "Assumptions"); the brief
+sets none.
 
-The terms tests carry FR-1 since P3, whose create API tests prove FR-1 end to end; until then a marker here
-would have let the requirement gate pass without any create test (P2 review finding 2).
+The terms tests carry FR-1 because the create API tests prove FR-1 end to end; a marker here before those
+tests existed would have let the requirement gate pass without any create test.
 """
 
 from collections.abc import Callable

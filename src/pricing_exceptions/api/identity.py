@@ -1,4 +1,4 @@
-"""Who is calling: the demo identity stand-in (design doc D6).
+"""Who is calling: the demo identity stand-in (ADR 0004).
 
 `X-User-Id` names a seeded user, and it works only when DEMO_IDENTITY is on. Off, every call is 401, so the
 stand-in fails closed. In production an OIDC token check replaces this one dependency: the identity seam.

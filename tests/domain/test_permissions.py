@@ -1,5 +1,5 @@
 """rules.permissions(): what a caller may do to a request as it is now, and rules.collection_permissions():
-whether they may create one (P7, design doc 10.2).
+whether they may create one.
 
 The page shows only the actions the server says a caller may take, and the server still enforces every rule
 when the action is tried. So the permissions must never disagree with the actions: the second test runs the
@@ -126,7 +126,7 @@ def test_permissions_never_disagree_with_the_actions(status: Status, user: str) 
             assert str(raised.value) == str(refusal)
 
 
-# Creating adds to the collection of requests, so the list answers it (P7): relationship managers only.
+# Creating adds to the collection of requests, so the list answers it: relationship managers only.
 # lead.fatima holds both roles, so she may.
 @pytest.mark.req(id="N5")
 @pytest.mark.parametrize(

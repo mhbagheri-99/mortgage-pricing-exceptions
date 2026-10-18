@@ -1,9 +1,10 @@
 """Fictional seed data. Running it again changes nothing.
 
-The container runs it on every start (design doc 9.3). Users and applications are inserted with ON CONFLICT DO
-NOTHING. Each seeded request goes through the create's own insert, and its history is written only when that
-insert lands, so a second run adds no events either. The four requests follow the seed table in section 10:
-fixed ids and times on 15 October 2026, one in each situation the demo and the 5.4 example need.
+The container runs it on every start (docs/architecture.md, "Operating and changing it safely"). Users and
+applications are inserted with ON CONFLICT DO NOTHING. Each seeded request goes through the create's own
+insert, and its history is written only when that insert lands, so a second run adds no events either. The
+four requests have fixed ids and times on 15 October 2026, one in each situation the demo and the example
+of an approved discount need.
 
     python -m pricing_exceptions.db.seed     # uses DATABASE_URL
 """
@@ -75,7 +76,7 @@ REQUESTS: list[tuple[PricingExceptionRequest, list[RequestEvent]]] = [
             RequestEvent(MA_1003, T.AMENDED, 2, "rm.bram", on_15_october(9, 40), 20, CONFIRMED),
         ],
     ),
-    (  # MA-1004: approved at revision 1 by rv.dana (the design doc 5.4 example)
+    (  # MA-1004: approved at revision 1 by rv.dana (the approved-discount example)
         PricingExceptionRequest(
             MA_1004,
             "MA-1004",

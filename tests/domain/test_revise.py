@@ -1,5 +1,5 @@
-"""rules.revise(): the requester changes the terms, as a new numbered revision (design doc D2, 5.5 and 6.3,
-agreed on 18 October 2026).
+"""rules.revise(): the requester changes the terms, as a new numbered revision (ADR 0001,
+docs/architecture.md "Order of checks").
 
 The transition table below is the spec, written out cell by cell. The request was made by lead.fatima, who
 holds both roles; rm.bram is another relationship manager, and rv.dana a reviewer without that role.
@@ -143,7 +143,7 @@ def test_revise_guard_order(actor: Actor, status: Status, sent: int, error: type
     ],
 )
 def test_only_the_requester_revises(user: str, allowed: bool) -> None:
-    """Each seeded user against rm.anna's pending request: one accountable maker (design doc D2)."""
+    """Each seeded user against rm.anna's pending request: one accountable maker (ADR 0001)."""
     request = a_request(Status.PENDING_REVIEW, "rm.anna")
     if allowed:
         assert revise(request, USERS[user], 2, NEW_TERMS, NOW)[0].requested_by == "rm.anna"
@@ -196,7 +196,7 @@ def test_revising_an_approved_request_names_its_status() -> None:
 )
 def test_the_role_checks_that_run_before_the_lock(user: str, may_revise: bool, may_decide: bool) -> None:
     """Whether someone may revise or decide at all depends only on who asks, so the service checks it before
-    it locks the request (P4 decision 1). Only staff, who may read any request, can then learn which ids
+    it locks the request. Only staff, who may read any request, can then learn which ids
     exist."""
     for check, allowed in ((check_role_to_revise, may_revise), (check_role_to_decide, may_decide)):
         if allowed:
@@ -228,7 +228,7 @@ def test_amend_makes_the_next_revision_with_the_new_terms() -> None:
 @pytest.mark.req(id="FR-2")
 def test_resubmit_clears_the_decision() -> None:
     """After a decline, new terms go back for review: pending at revision n + 1, with the row's decision
-    cleared. The decline itself stays in history (design doc 4.2)."""
+    cleared. The decline itself stays in history (docs/architecture.md, "Data model")."""
     request = a_request(Status.DECLINED)
     revised, event = revise(request, LEAD_FATIMA, 2, NEW_TERMS, NOW)
     assert revised == replace(
@@ -253,7 +253,8 @@ def test_resubmit_clears_the_decision() -> None:
 
 @pytest.mark.req(id="FR-2")
 def test_the_same_terms_again_still_make_a_revision() -> None:
-    """D2 cut the identical-terms rule: unchanged terms are allowed, and still get the next number."""
+    """There is no identical-terms rule (ADR 0001): unchanged terms are allowed, and
+    still get the next number."""
     revised, event = revise(a_request(Status.PENDING_REVIEW), LEAD_FATIMA, 2, Terms(30, REASON), NOW)
     assert (revised.revision, revised.discount_bps, revised.reason) == (3, 30, REASON)
     assert (event.event_type, event.revision) == (EventType.AMENDED, 3)

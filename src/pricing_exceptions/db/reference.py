@@ -1,5 +1,5 @@
 """Reference data this service does not own: the users (an identity provider in production) and the mortgage
-applications (loan origination in production). These two lookups are the production seam (design doc 6.7).
+applications (loan origination in production). These two lookups are the production seam (ADR 0004).
 """
 
 from sqlalchemy import Connection, text

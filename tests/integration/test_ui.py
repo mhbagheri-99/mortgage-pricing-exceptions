@@ -1,9 +1,10 @@
-"""The browser page at /ui (design doc D11, 6.6) and the user list its acting-as switcher reads.
+"""The browser page at /ui (ADR 0004) and the user list its acting-as switcher reads.
 
 The page is three static files. They are sent with a Content Security Policy, the second line of defence
 against cross-site scripting, on /ui only: Swagger at /docs loads its files from a CDN and starts with an
-inline script, which the policy would block (7.5). Two checks read the page's own files, so the policy can
-never break the page silently and text from the server can only reach the page as text.
+inline script, which the policy would block (docs/architecture.md, "Security"). Two checks read the page's own
+files, so the policy can never break the page silently and text from the server can only reach the page as
+text.
 """
 
 from html.parser import HTMLParser
@@ -19,7 +20,7 @@ from pricing_exceptions.api.app import create_app
 
 UI = Path(pricing_exceptions.api.__file__).parent / "ui"
 # default-src covers scripts, styles and fetch; the other three are the directives it does not cover: a
-# planted <base> tag, a form posting elsewhere, and another site framing the page (P7 decision 3).
+# planted <base> tag, a form posting elsewhere, and another site framing the page.
 POLICY = "default-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 STAFF_USERS = [
     {
@@ -78,7 +79,7 @@ def test_the_page_is_served_with_its_security_policy(client: TestClient, path: s
     assert response.headers["Content-Type"].split(";")[0] == media_type
     assert response.headers["Content-Security-Policy"] == POLICY
     assert response.headers["X-Content-Type-Options"] == "nosniff"
-    # Revalidate on every load, so a browser never runs an old app.js against a newer API (P7 review).
+    # Revalidate on every load, so a browser never runs an old app.js against a newer API.
     assert response.headers["Cache-Control"] == "no-cache"
 
 
@@ -142,7 +143,7 @@ def test_the_page_has_no_inline_script_or_style() -> None:
 
 
 # The ways a script turns text into markup or code. Server text (a reason, a comment) must only ever be set as
-# text, through textContent (design doc 7.5). The newer HTML parsers are listed too (P7 review).
+# text, through textContent (docs/architecture.md, "Security"). The newer HTML parsers are listed too.
 MARKUP_SINKS = (
     "innerHTML",
     "outerHTML",

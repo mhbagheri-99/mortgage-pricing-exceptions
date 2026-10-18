@@ -1,6 +1,6 @@
 """The requests and their history: hand-written SQL through text(), always with bound parameters.
 
-Repositories receive a connection and never commit; the service owns the transaction (design doc 7.4). History
+Repositories receive a connection and never commit; the service owns the transaction (ADR 0003). History
 is only ever appended to: there is no function that updates or deletes an event.
 """
 
@@ -22,7 +22,7 @@ type Position = tuple[datetime, UUID]  # where a page of the list ends: the last
 
 # The create's insert. The conflict target is the one plain unique constraint, so a duplicate for the same
 # application inserts nothing and returns no row; at READ COMMITTED it first waits for a create of the same
-# application that is still in flight, then sees its outcome (design doc D3, 7.4).
+# application that is still in flight, then sees its outcome (ADR 0002).
 INSERT_REQUEST = text("""
     INSERT INTO pricing_exception_requests
         (id, application_id, requested_by, status, revision_no, discount_bps, reason,
@@ -54,7 +54,7 @@ READ_REQUEST = text("""
      ORDER BY e.id
 """)
 
-# The row lock every change takes first (design doc D4). FOR NO KEY UPDATE makes a second writer wait, but not
+# The row lock every change takes first (ADR 0003). FOR NO KEY UPDATE makes a second writer wait, but not
 # the foreign-key checks of inserts that point at this row. By primary key only: an extra AND status = ...
 # would make PostgreSQL skip a row that changed while this waited, and the loser would wrongly get 404. At
 # READ COMMITTED, a writer that waited gets the newest committed row.
@@ -87,7 +87,7 @@ FIND_APPROVED = text("""
 """)
 
 # The review queue, oldest first. Every page is one range scan of ix_request_status_created; the row-value
-# comparison continues strictly after the last row of the previous page (design doc 5.6).
+# comparison continues strictly after the last row of the previous page (docs/architecture.md, "Listing").
 FIRST_PAGE = text("""
     SELECT r.id, r.application_id, r.requested_by, r.status, r.revision_no, r.discount_bps, r.reason,
            r.decided_by, r.decided_at, r.decision_comment, r.created_at
@@ -147,7 +147,7 @@ def append_event(conn: Connection, event: RequestEvent) -> None:
 
 def read_request(conn: Connection, request_id: UUID) -> RequestRecord | None:
     """The request with its whole history, oldest event first, or None. Every response that shows a request
-    is built from this one function (design doc 6.5)."""
+    is built from this one function (docs/architecture.md, "Operating and changing it safely")."""
     rows = conn.execute(READ_REQUEST, {"id": request_id}).mappings().all()
     if not rows:
         return None
@@ -162,7 +162,7 @@ def lock_request(conn: Connection, request_id: UUID) -> PricingExceptionRequest 
 
 
 def update_request(conn: Connection, request: PricingExceptionRequest) -> None:
-    """Write a changed request back. The caller holds its lock, so exactly one row must change (D4)."""
+    """Write a changed request back. The caller holds its lock, so exactly one row must change (ADR 0003)."""
     decision = request.decision
     changed = conn.execute(
         UPDATE_REQUEST,

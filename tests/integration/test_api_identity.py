@@ -1,4 +1,4 @@
-"""The identity stand-in (design doc D6): `X-User-Id` against the seeded users, only when DEMO_IDENTITY is
+"""The identity stand-in (ADR 0004): `X-User-Id` against the seeded users, only when DEMO_IDENTITY is
 on. Off, it fails closed: every call is 401, whoever the header names."""
 
 import logging

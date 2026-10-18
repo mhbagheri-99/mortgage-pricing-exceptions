@@ -1,6 +1,6 @@
-"""Create, and its replay (design doc D3, 5.2 and 5.5), through the real app on a real PostgreSQL.
+"""Create, and its replay (ADR 0002), through the real app on a real PostgreSQL.
 
-The seeded requests (section 10) give a taken application for every conflict: MA-1002 is rm.anna's, at 20 bps.
+The seeded requests give a taken application for every conflict: MA-1002 is rm.anna's, at 20 bps.
 """
 
 import logging
@@ -48,7 +48,7 @@ def test_create_returns_the_new_request_with_its_history(client: TestClient, eng
                 "comment": None,
             }
         ],
-        # What rm.anna may do next (P7): revise her request; deciding needs the reviewer role.
+        # What rm.anna may do next: revise her request; deciding needs the reviewer role.
         "permissions": {
             "decide": {
                 "allowed": False,
@@ -120,7 +120,7 @@ def test_a_late_retry_replays_the_request_as_it_is_now(
     assert response.headers["Location"] == f"{REQUESTS}/{seeded_id(number)}"
     body = response.json()
     assert (body["status"], body["revision"]) == (status, revision)
-    # Read back by the same caller: the permissions in the body are the caller's (P7).
+    # Read back by the same caller: the permissions in the body are the caller's.
     assert body == client.get(response.headers["Location"], headers=as_user(user)).json()
     assert stored(engine) == SEEDED
 
@@ -143,7 +143,7 @@ def test_a_different_create_for_a_taken_application_is_409(
     problem = response.json()
     assert problem["type"] == PROBLEMS + "request-exists"
     current = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers=as_user("rv.dana")).json()
-    del current["history"], current["permissions"]  # a 409's current is the request alone (5.3, P7)
+    del current["history"], current["permissions"]  # a 409's current is the request alone
     assert problem["current"] == current
     assert stored(engine) == SEEDED
 
@@ -278,7 +278,7 @@ def test_a_malformed_application_id_in_the_path_is_explained_in_words(client: Te
 )
 @pytest.mark.parametrize("headers", [as_user("rm.anna"), {}], ids=["with an identity", "without one"])
 def test_unparseable_json_is_400(client: TestClient, headers: dict[str, str], raw: bytes) -> None:
-    """FastAPI reads the JSON before the identity (P1 spike step 7), so 400 comes even before 401."""
+    """FastAPI reads the JSON before the identity, so 400 comes even before 401."""
     response = client.post(REQUESTS, content=raw, headers={**headers, "Content-Type": "application/json"})
     assert response.status_code == 400
     assert response.headers["Content-Type"] == "application/problem+json"
@@ -312,7 +312,7 @@ def test_unparseable_json_is_400(client: TestClient, headers: dict[str, str], ra
 def test_create_checks_run_in_order(
     client: TestClient, user: str | None, body: dict[str, object], status: int, problem: str
 ) -> None:
-    """Design doc 5.5: identity (401), shape and values (422), the RM role (403), the application (422), then
+    """Order of checks: identity (401), shape and values (422), the RM role (403), the application (422), then
     the insert. The first check that fails answers."""
     response = client.post(REQUESTS, json=body, headers=as_user(user) if user else {})
     assert (response.status_code, response.json()["type"]) == (status, PROBLEMS + problem)
@@ -338,7 +338,7 @@ def test_text_that_is_not_valid_unicode_is_422_not_500(
     client: TestClient, engine: Engine, raw: bytes, pointer: str
 ) -> None:
     """JSON may escape half of a surrogate pair, which UTF-8 cannot encode: PostgreSQL would refuse it as a
-    500, and so would the error response that names the field (P3 review finding 1)."""
+    500, and so would the error response that names the field."""
     response = client.post(
         REQUESTS, content=raw, headers={**as_user("rm.anna"), "Content-Type": "application/json"}
     )

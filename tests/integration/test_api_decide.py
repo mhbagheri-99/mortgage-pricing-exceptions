@@ -1,7 +1,7 @@
-"""Decide (FR-3), the guarantees around it (N1, N4, N5) and the stakeholder story (design doc D1, D4, 5.3,
-6.5), through the real app on a real PostgreSQL.
+"""Decide (FR-3), the guarantees around it (N1, N4, N5) and the stakeholder story (ADR 0001, ADR 0003),
+through the real app on a real PostgreSQL.
 
-The seeded requests (section 10): MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
+The seeded requests: MA-1002 is rm.anna's, pending at r1; MA-1003 is rm.bram's, pending at r2;
 MA-1004 is rm.bram's, approved at r1 by rv.dana; MA-1005 is rm.anna's, declined at r1 by rv.erik.
 """
 
@@ -113,7 +113,7 @@ def test_approval_binds_to_reviewed_revision(client: TestClient, engine: Engine)
 @pytest.mark.req(id="N5")
 def test_requester_cannot_decide_own_request(client: TestClient, engine: Engine) -> None:
     """Holding the reviewer role is not enough: lead.fatima holds both roles and made the request. rm.anna has
-    no reviewer role, so the role check answers first (design doc 5.5, P2 decision 1c)."""
+    no reviewer role, so the role check answers first."""
     created = client.post(REQUESTS, json=create_body("MA-1006"), headers=as_user("lead.fatima"))
     assert created.status_code == 201
     request_id = created.json()["id"]
@@ -143,8 +143,8 @@ def test_requester_cannot_decide_own_request(client: TestClient, engine: Engine)
     ],
 )
 def test_approved_is_final(client: TestClient, engine: Engine, user: str, path: str, body: dict) -> None:
-    """Approved never changes, so the discount the mortgage process read stays the discount (design doc
-    D1)."""
+    """Approved never changes, so the discount the mortgage process read stays the discount
+    (ADR 0001)."""
     response = client.post(path, json=body, headers=as_user(user))
     assert response.status_code == 409
     problem = response.json()
@@ -157,7 +157,7 @@ def test_approved_is_final(client: TestClient, engine: Engine, user: str, path: 
 
 @pytest.mark.req(id="FR-3")
 def test_a_declined_request_is_resubmitted_before_it_is_decided_again(client: TestClient) -> None:
-    """A decline is answered by the requester's new terms (P2 decision 1a). Every decision stays in history,
+    """A decline is answered by the requester's new terms. Every decision stays in history,
     so the brief's previous decisions all show (FR-5)."""
     again = client.post(decisions(1005), json=decide_body(1), headers=as_user("rv.dana"))
     assert again.status_code == 409
@@ -244,7 +244,7 @@ def test_the_decide_body_is_strict(client: TestClient, engine: Engine, body: dic
 def test_decide_checks_run_in_order(
     client: TestClient, engine: Engine, user: str | None, path: str, body: dict, status: int, problem: str
 ) -> None:
-    """Design doc 5.5 and P4 decision 1: identity (401), shape and values (422), the reviewer role (403), the
+    """Order of checks: identity (401), shape and values (422), the reviewer role (403), the
     lock (404), four-eyes (403), the status (409), then the revision (409). The first check that fails
     answers. A 404 has no problem type of its own: `about:blank`."""
     response = client.post(path, json=body, headers=as_user(user) if user else {})
@@ -255,8 +255,8 @@ def test_decide_checks_run_in_order(
 
 @pytest.mark.req(id="FR-5")
 def test_write_response_matches_get(client: TestClient) -> None:
-    """One read builds every response that shows a request (design doc 6.5): a write's answer is what a GET
-    right after it shows, to the same caller, because the permissions in it are the caller's (P7)."""
+    """One read builds every response that shows a request: a write's answer is what a GET right
+    after it shows, to the same caller, because the permissions in it are the caller's."""
     revised = client.post(revisions(1003), json=revise_body(2, 25), headers=as_user("rm.bram"))
     assert revised.status_code == 200
     assert revised.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rm.bram")).json()
@@ -342,8 +342,8 @@ def test_a_change_and_its_event_commit_together_or_not_at_all(
 
 
 def test_the_clock_is_read_once_under_the_row_lock(engine: Engine) -> None:
-    """P4 decision 3: a change reads the clock once, while it holds the request's row lock, so the times in
-    history follow the order in which writers took the lock (P4 review finding 2)."""
+    """A change reads the clock once, while it holds the request's row lock, so the times in history follow
+    the order in which writers took the lock."""
     clock = LockProbeClock(engine, seeded_id(1003))
     client = TestClient(create_app(engine, clock, demo_identity=True))
     revised = client.post(revisions(1003), json=revise_body(2), headers=as_user("rm.bram"))
@@ -355,7 +355,7 @@ def test_the_clock_is_read_once_under_the_row_lock(engine: Engine) -> None:
 @pytest.mark.req(id="FR-2")
 @pytest.mark.req(id="FR-4")
 def test_the_stakeholder_story(client: TestClient) -> None:
-    """Both stakeholders, in one story (design doc D1, the section 10 demo): the requester changes the
+    """Both stakeholders, in one story (ADR 0001): the requester changes the
     discount after submitting it, and the approval applies to exactly the revision that was reviewed. The
     mortgage process then reads the approved 30 bps at revision 2."""
     fatima, dana = as_user("lead.fatima"), as_user("rv.dana")

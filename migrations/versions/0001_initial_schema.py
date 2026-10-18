@@ -1,8 +1,8 @@
 """The full schema: users, mortgage applications, pricing exception requests and their history.
 
-Every rule here is a backstop for a rule the domain also enforces (design doc 4.2), so a bug in the code
-cannot write a row that breaks one. The policy limits (1 to 100 bps, text up to 1,000 characters) live in the
-domain only; the database checks shape.
+Every rule here is a backstop for a rule the domain also enforces (docs/architecture.md, "Data model"), so a
+bug in the code cannot write a row that breaks one. The policy limits (1 to 100 bps, text up to 1,000
+characters) live in the domain only; the database checks shape.
 
 Revision ID: 0001
 Revises:
@@ -65,7 +65,7 @@ STATEMENTS = [
         )
     )
     """,
-    # The review queue: every page is one range scan of this index (design doc 5.6).
+    # The review queue: every page is one range scan of this index (docs/architecture.md, "Listing").
     "CREATE INDEX ix_request_status_created ON pricing_exception_requests (status, created_at, id)",
     """
     CREATE TABLE pricing_exception_events (

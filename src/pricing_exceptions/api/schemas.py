@@ -1,8 +1,8 @@
-"""Request and response bodies (design doc 5.1 to 5.6).
+"""Request and response bodies (docs/architecture.md, "Endpoints").
 
-Input is strict where it matters (1.4): `StrictInt` and `StrictStr` refuse "25", 25.0 and true, and
+Input is strict where it matters: `StrictInt` and `StrictStr` refuse "25", 25.0 and true, and
 `extra="forbid"` refuses fields the client may not set, such as status or decided_by. These models check shape
-only; the policy limits are the domain's value objects (5.5 step 4).
+only; the policy limits are the domain's value objects (docs/architecture.md, "Order of checks").
 """
 
 from datetime import datetime
@@ -45,14 +45,14 @@ class CreateRequest(BaseModel):
 
 
 # The revision the caller saw. Below 1 can never exist, so it is wrong on its own: 422. Any other revision
-# that is not the current one is 409 stale-revision (P4 decision 2).
+# that is not the current one is 409 stale-revision.
 Revision = Annotated[StrictInt, Field(ge=1)]
 
 
 class ReviseRequest(BaseModel):
     """What the requester sends to change the terms: the revision they saw and both terms, so every revision
-    is complete on its own (design doc 5.3). The application id is not here: another application is another
-    request (D2)."""
+    is complete on its own (docs/architecture.md, "Endpoints"). The application id is not here: another
+    application is another request (ADR 0001)."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -63,7 +63,7 @@ class ReviseRequest(BaseModel):
 
 class DecideRequest(BaseModel):
     """What a reviewer sends: the revision they reviewed, the outcome, and a comment, which a decline needs
-    (design doc 5.3)."""
+    (docs/architecture.md, "Endpoints")."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -113,7 +113,8 @@ class EventOut(BaseModel):
 
 
 class RequestSummary(BaseModel):
-    """One row of the list: the fields a queue needs. History stays in GET (design doc 5.6)."""
+    """One row of the list: the fields a queue needs. History stays in GET
+    (docs/architecture.md, "Listing")."""
 
     id: UUID
     application_id: str
@@ -137,8 +138,9 @@ class RequestSummary(BaseModel):
 
 
 class RequestCurrent(RequestSummary):
-    """The request as it is now, without its history: the `current` every 409 carries (design doc 5.3).
-    `latest_decision` comes from history, so a resubmitted request still shows the decline it answers."""
+    """The request as it is now, without its history: the `current` every 409 carries
+    (docs/architecture.md, "Errors"). `latest_decision` comes from history, so a resubmitted request still
+    shows the decline it answers."""
 
     reason: str
     latest_decision: DecisionOut | None
@@ -156,7 +158,7 @@ class RequestCurrent(RequestSummary):
 class PermissionOut(BaseModel):
     """Whether the caller may take one action now. If not, `problem` is the problem code the action would be
     refused with (the last part of the refusal's `type`, such as `four-eyes-violation`) and `detail` its
-    reason, so a client can say why instead of offering a button that can only fail (P7)."""
+    reason, so a client can say why instead of offering a button that can only fail."""
 
     allowed: bool
     problem: str | None
@@ -191,8 +193,9 @@ class RequestOut(RequestCurrent):
 
 
 class PageOut(BaseModel):
-    """One page of the list. Follow `next_cursor` until it is null to see every request (design doc 5.6).
-    `permissions` is what the caller may do with the collection: create a request (P7)."""
+    """One page of the list. Follow `next_cursor` until it is null to see every request
+    (docs/architecture.md, "Listing"). `permissions` is what the caller may do with the collection: create a
+    request."""
 
     items: list[RequestSummary]
     next_cursor: str | None
@@ -208,7 +211,8 @@ class PageOut(BaseModel):
 
 
 class ApprovedDiscount(BaseModel):
-    """What the mortgage process reads once a request is approved (design doc 5.4)."""
+    """What the mortgage process reads once a request is approved
+    (docs/architecture.md, "What the mortgage process reads")."""
 
     application_id: str
     status: Literal["APPROVED"]

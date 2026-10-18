@@ -1,8 +1,9 @@
-// The page for pricing exception requests (design doc D11, 6.6). It calls only the public API and
-// /demo/users, and decides no access: the actions it offers come from the server's `permissions`, and every
-// refusal it shows is the server's own wording. Its labels describe the rules; the server enforces them.
+// The page for pricing exception requests (ADR 0004; docs/architecture.md, "The page"). It calls only the
+// public API and /demo/users, and decides no access: the actions it offers come from the server's
+// `permissions`, and every refusal it shows is the server's own wording. Its labels describe the rules; the
+// server enforces them.
 // Text from the server is only ever set as text, through textContent or append() with a string, so a reason
-// that looks like markup stays text (design doc 7.5).
+// that looks like markup stays text (docs/architecture.md, "Security").
 
 const REQUESTS = "/api/v1/pricing-exception-requests";
 // sessionStorage belongs to one tab, so two tabs can act as two users (the four-eyes and stale-revision demos).
@@ -21,7 +22,7 @@ const EVENTS = {
   APPROVED: "Approved",
   DECLINED: "Declined",
 };
-// The actions the server reports in `permissions` (P7), named as the page offers them.
+// The actions the server reports in `permissions`, named as the page offers them.
 const ACTIONS = { decide: "Approve or decline", revise: "Change the terms" };
 const FIELDS = {
   application_id: "Application id",
@@ -206,7 +207,7 @@ function clearList(message) {
   showCreate(null);
 }
 
-// The list says whether the caller may create a request (`permissions.create`, P7): the button shows only
+// The list says whether the caller may create a request (`permissions.create`): the button shows only
 // then; otherwise one line gives the server's reason. Nobody chosen yet means neither.
 function showCreate(permission) {
   const allowed = Boolean(permission && permission.allowed);
@@ -215,7 +216,8 @@ function showCreate(permission) {
   $("create-note").textContent = permission && !allowed ? `New requests: ${permission.detail}` : "";
 }
 
-// Oldest first, one page at a time; "Load more" follows next_cursor until it is null (design doc 5.6).
+// Oldest first, one page at a time; "Load more" follows next_cursor until it is null
+// (docs/architecture.md, "Listing").
 async function loadList(more = false) {
   const mine = (latest.list += 1);
   if (!more) {
@@ -427,7 +429,7 @@ function renderRequest(record, notice = "") {
       timeline(record.history),
     ),
   );
-  // The server says what this caller may do (`permissions`, P7): only those forms are offered, and every
+  // The server says what this caller may do (`permissions`): only those forms are offered, and every
   // other action is listed with the server's own reason. The server still checks each rule when it is tried.
   const allowed = record.permissions || {};
   const refused = Object.entries(allowed).filter(([, permission]) => !permission.allowed);
@@ -445,7 +447,8 @@ function renderRequest(record, notice = "") {
 }
 
 // What the mortgage application process, an external system, receives for this request's application: the
-// real consumer endpoint, shown as one line and as the exact answer (FR-4, design doc 5.4).
+// real consumer endpoint, shown as one line and as the exact answer (FR-4;
+// docs/architecture.md, "What the mortgage process reads").
 async function loadConsumerView(record) {
   const path = `/api/v1/mortgage-applications/${encodeURIComponent(record.application_id)}/approved-discount`;
   const result = await call("GET", path);
@@ -540,7 +543,7 @@ function timeline(events) {
   );
 }
 
-// Offered only when the server's `permissions` allow it for this caller (P7).
+// Offered only when the server's `permissions` allow it for this caller.
 function decideForm(record) {
   const form = el(
     "form",
@@ -617,7 +620,7 @@ function reviseForm(record) {
 }
 
 // After a write: success redraws the request from the answer, which has the GET shape. A refusal is shown
-// under the form that sent it and changes nothing else on screen; a 409 also offers to reload (P7 decision 1).
+// under the form that sent it and changes nothing else on screen; a 409 also offers to reload.
 async function afterWrite(result, done, slot) {
   if (result.ok) {
     renderRequest(result.data, done(result.data));
@@ -629,7 +632,7 @@ async function afterWrite(result, done, slot) {
 }
 
 // What the user changed in the two forms, so a reload after a 409 keeps it. Only edited fields: an untouched
-// field still holds the old revision's terms, and restoring it would quietly send them back (P7 review).
+// field still holds the old revision's terms, and restoring it would quietly send them back.
 function readTyped() {
   const typed = [];
   for (const id of ["revise-form", "decide-form"]) {

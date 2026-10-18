@@ -397,7 +397,7 @@ def gates(mode: str) -> list[tuple[str, Callable[[], tuple[bool, str]]]]:
         ("ruff lint", lambda: tool(python, "-m", "ruff", "check", ".")),
         ("ruff format", lambda: tool(python, "-m", "ruff", "format", "--check", ".")),
         ("mypy", lambda: tool(python, "-m", "mypy")),
-        # No cache: a stale cache once reported an import that had already been removed (P1).
+        # No cache: a stale cache once reported an import that had already been removed.
         ("import-linter", lambda: tool(lint_imports, "--no-cache")),
         requirements,
         ("skip markers", lambda: listed(find_skip_markers(ROOT))),

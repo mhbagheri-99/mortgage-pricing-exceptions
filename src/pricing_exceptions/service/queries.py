@@ -24,15 +24,15 @@ def database_ok(engine: Engine) -> bool:
 
 
 def get_actor(engine: Engine, user_id: str) -> Actor | None:
-    """The seeded user with this id and their roles, or None (design doc D6)."""
+    """The seeded user with this id and their roles, or None (ADR 0004)."""
     with engine.connect() as conn:
         return reference.find_actor(conn, user_id)
 
 
 def list_users(engine: Engine) -> list[User]:
     """The staff users, by id: the people the demo's acting-as switcher can act as. Only that switcher asks,
-    and only with the demo identity on (design doc 5.1). svc.mortgage is left out: it is the mortgage
-    process's account, which reads approved discounts through the API, not the page (P7)."""
+    and only with the demo identity on (docs/architecture.md, "Endpoints"). svc.mortgage is left out: it
+    is the mortgage process's account, which reads approved discounts through the API, not the page."""
     with engine.connect() as conn:
         return [user for user in reference.list_users(conn) if rules.is_staff(user.roles)]
 
@@ -55,7 +55,7 @@ class Page:
 
 def list_requests(engine: Engine, actor: Actor, status: Status, after: Position | None, limit: int) -> Page:
     """One page of the requests in one status, oldest first. It reads one row more than it returns: that row
-    tells whether a next page exists, with no count (design doc 5.6)."""
+    tells whether a next page exists, with no count (docs/architecture.md, "Listing")."""
     rules.require_staff(actor)
     with engine.connect() as conn:
         rows = requests.list_requests(conn, status, after, limit + 1)
@@ -66,7 +66,8 @@ def list_requests(engine: Engine, actor: Actor, status: Status, after: Position 
 
 def approved_discount(engine: Engine, application_id: str) -> PricingExceptionRequest | None:
     """The approved request for an application, or None before an approval. Every role may ask. An unknown
-    application is 404, so a typo never reads as "no discount" (design doc 5.4)."""
+    application is 404, so a typo never reads as "no discount"
+    (docs/architecture.md, "What the mortgage process reads")."""
     with engine.connect() as conn:
         if not reference.application_exists(conn, application_id):
             raise NotFound(f"There is no mortgage application {application_id}.")

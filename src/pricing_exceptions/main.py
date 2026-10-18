@@ -19,7 +19,8 @@ def system_clock() -> datetime:
 
 
 def configure_logging() -> None:
-    """Our own log lines (design doc 7.9) at INFO and above, with their level, on standard error."""
+    """Our own log lines (docs/architecture.md, "Logging") at INFO and above, with their level,
+    on standard error."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 

@@ -1,8 +1,10 @@
-"""The contract endpoints (design doc 5.1). HTTP only: each route reads its input, builds the domain's value
-objects (which check themselves: 422), calls one service function and shapes the answer.
+"""The contract endpoints (docs/architecture.md, "Endpoints"). HTTP only: each route reads its input,
+builds the domain's value objects (which check themselves: 422), calls one service function and shapes the
+answer.
 
-FastAPI runs the checks in the agreed order (5.5): it parses the JSON (400), resolves the caller (401), then
-checks the shape of the body and parameters (422), before the route body runs.
+FastAPI runs the checks in the agreed order (docs/architecture.md, "Order of checks"): it parses the JSON
+(400), resolves the caller (401), then checks the shape of the body and parameters (422), before the route
+body runs.
 """
 
 from collections.abc import Callable
