@@ -5,9 +5,11 @@ The limits are our assumptions (design doc 3.4): the brief sets none, so each is
 
 from dataclasses import dataclass, field, replace
 from datetime import datetime
+from enum import StrEnum
 from uuid import UUID
 
 from pricing_exceptions.domain.errors import (
+    DomainError,
     Forbidden,
     FourEyesViolation,
     InvalidState,
@@ -225,6 +227,18 @@ def is_retry(existing: RequestRecord, actor: Actor, terms: Terms) -> bool:
         terms.discount_bps,
         terms.reason,
     )
+
+
+class Action(StrEnum):
+    """What a caller can do to an existing request."""
+
+    DECIDE = "decide"
+    REVISE = "revise"
+
+
+def permissions(request: PricingExceptionRequest, actor: Actor) -> dict[Action, DomainError | None]:
+    """Skeleton for the red commit: no behaviour yet."""
+    return dict.fromkeys(Action)
 
 
 _STAFF = frozenset({Role.RELATIONSHIP_MANAGER, Role.REVIEWER})

@@ -256,15 +256,15 @@ def test_decide_checks_run_in_order(
 @pytest.mark.req(id="FR-5")
 def test_write_response_matches_get(client: TestClient) -> None:
     """One read builds every response that shows a request (design doc 6.5): a write's answer is what a GET
-    right after it shows."""
+    right after it shows, to the same caller, because the permissions in it are the caller's (P7)."""
     revised = client.post(revisions(1003), json=revise_body(2, 25), headers=as_user("rm.bram"))
     assert revised.status_code == 200
-    assert revised.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rv.dana")).json()
+    assert revised.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rm.bram")).json()
     decided = client.post(
         decisions(1003), json=decide_body(3, "DECLINED", "Up to 20 bps"), headers=as_user("rv.dana")
     )
     assert decided.status_code == 200
-    assert decided.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rm.bram")).json()
+    assert decided.json() == client.get(f"{REQUESTS}/{seeded_id(1003)}", headers=as_user("rv.dana")).json()
     assert kinds(decided.json()) == [("SUBMITTED", 1), ("AMENDED", 2), ("AMENDED", 3), ("DECLINED", 3)]
     assert decided.json()["latest_decision"]["comment"] == "Up to 20 bps"
 

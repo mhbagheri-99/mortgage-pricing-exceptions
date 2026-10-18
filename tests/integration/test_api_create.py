@@ -48,8 +48,18 @@ def test_create_returns_the_new_request_with_its_history(client: TestClient, eng
                 "comment": None,
             }
         ],
+        # What rm.anna may do next (P7): revise her request; deciding needs the reviewer role.
+        "permissions": {
+            "decide": {
+                "allowed": False,
+                "problem": "forbidden",
+                "detail": "Only a reviewer can decide a request.",
+            },
+            "revise": {"allowed": True, "problem": None, "detail": None},
+        },
     }
-    assert client.get(response.headers["Location"], headers=as_user("rv.dana")).json() == body
+    # The same caller reads it back; permissions belong to the caller, so another user would see others.
+    assert client.get(response.headers["Location"], headers=as_user("rm.anna")).json() == body
     assert stored(engine) == (5, 8)
 
 
