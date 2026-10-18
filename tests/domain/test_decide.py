@@ -29,7 +29,7 @@ from pricing_exceptions.domain.model import (
     Role,
     Status,
 )
-from pricing_exceptions.domain.rules import Verdict, decide
+from pricing_exceptions.domain.rules import Terms, Verdict, decide
 
 REQUEST_ID = uuid.UUID("3f2c9a1e-6b0d-4c55-9e1a-2d7f0b8c4a10")
 REASON = "Retention: competitor offer 30 bps below standard"
@@ -215,3 +215,15 @@ def test_a_decision_records_who_and_when(outcome: Outcome, comment: str | None) 
         reason=REASON,
         comment=comment,
     )
+
+
+def test_free_text_stays_out_of_repr() -> None:
+    """The reason and comment are never logged (design doc 7.9), so a stray repr() in a log line must not leak
+    them. P2 review finding 4."""
+    comment = "Up to 20 bps acceptable"
+    decided, event = decide(
+        a_request(Status.PENDING_REVIEW, "rm.anna"), RV_DANA, 2, Verdict(Outcome.DECLINED, comment), NOW
+    )
+    for shown in (decided, decided.decision, event, Terms(30, REASON), Verdict(Outcome.DECLINED, comment)):
+        assert REASON not in repr(shown)
+        assert comment not in repr(shown)
