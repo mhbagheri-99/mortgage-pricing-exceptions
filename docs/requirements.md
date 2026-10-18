@@ -29,4 +29,6 @@ is finished. "Where it comes from" is the client need behind each row, in our ow
 | N8 | **Consistency over availability.** When the database is unavailable, a write is refused with 503 rather than accepted without its guarantees. | A wrong discount changes what a borrower pays. | P5 |
 | N9 | **Bounded waiting.** No call takes more than about 8 seconds; a wait for a lock stops at 2 seconds. | A hung call looks like a timeout and starts the retries of FR-6. | P5 |
 
-N6 (runs locally with one command), N7 (this gate) and N10 (latency) are checked by CI steps, not by tagged tests.
+These three have no tagged test. N6 (runs locally with one command) is checked by the CI step that starts the
+app with `docker compose up` and calls it. N7 (evidence for the requirements above) is this gate itself. N10
+(latency under 100 ms per call at internal-tool load) is not measured by any test or CI step.

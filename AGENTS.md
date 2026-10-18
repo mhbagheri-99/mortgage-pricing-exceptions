@@ -30,8 +30,12 @@ SQL, PostgreSQL 18.
 - No network calls while a row lock is held.
 - Every response that shows a request is built by `db.requests.read_request()`.
 - Times come from the injected clock, as `datetime.now(UTC)`. Money is integer basis points.
-- Requests are checked in a fixed order: JSON (400), identity (401), shape and values (422), then the lock (404),
-  role and four-eyes (403), status (409 `invalid-state`) and revision (409 `stale-revision`).
+- Requests are checked in a fixed order. A change: JSON (400), identity (401), shape and values (422), the role
+  (403, before any database access), then the lock (404), ownership or four-eyes (403), status (409
+  `invalid-state`) and revision (409 `stale-revision`). A read: identity (401), parameters (422), the staff role
+  (403), then the lookup (404); the approved-discount read asks no role. A create: after the role, the
+  application (422 `application-not-found`), then the insert. The role comes before the lock because it depends
+  only on who asks: checking it first takes no lock and lets nobody without the role probe which ids exist.
 
 ## Tests
 
@@ -45,16 +49,19 @@ SQL, PostgreSQL 18.
 
 ## Guardrails
 
-- Editing `.claude/`, `scripts/check.py`, `.github/`, `pyproject.toml` or `docs/requirements.md`, adding or
-  removing a package, committing and pushing all need the human's approval. Force push, hard reset and force-add
-  are refused.
-- When you stop, the finish check runs the fast gates and keeps you working while one fails.
+- Editing `.claude/`, `scripts/check.py`, `.github/`, `pyproject.toml`, `uv.lock` or `docs/requirements.md`,
+  adding, removing or upgrading a package, committing and pushing all need the human's approval. Force push, hard
+  reset and force-add are refused.
+- When you stop, the finish check runs the fast gates and keeps you working while one fails. It blocks only
+  once in a row: the second stop goes through (`stop_hook_active`), so it never traps you in a loop. CI repeats
+  every gate and is the backstop.
 - Never change a guardrail to get past it. Say what blocked you and ask.
 - These rules see the file-editing tools and the command text only. A shell command that writes a file (`sed -i`,
   a redirect, `Set-Content`) or an unusual git spelling can slip past them, so never use one on a guarded file.
   CI repeats every gate, and `scripts/check.py` also fails on a config file that would override
   `pyproject.toml`, a domain import outside the standard library, a `noqa` that hides a banned API, a `conftest.py`
-  hook that can hide tests, and any test run where a test was skipped, xfailed or deselected.
+  hook that can hide tests, any test run where a test was skipped, xfailed or deselected, and any test function
+  that is written but never ran.
 
 ## Data and wording
 
