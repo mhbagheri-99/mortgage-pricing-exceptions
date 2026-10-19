@@ -165,8 +165,7 @@ Each of these is real, found by a gate, a test, a review, the audit or the agent
 - **The agent's own slips.** Three times a test file was edited through the shell, which the test guard cannot see:
   appending new tests (first phase); a scripted edit that removed an `assert callable(...)` the agent had just added
   (third phase); and `ruff format` on a new file (whitespace only, hardening phase). Each was found by the agent and
-  reported. A shell script also emptied a private working document while writing it; it was restored from the backup
-  made minutes earlier. The rule now: test edits go through the file-editing tools only, and new tests are formatted
+  reported. A shell write also damaged a working file; it was restored from a backup. The rule now: test edits go through the file-editing tools only, and new tests are formatted
   in a scratch copy and compared with the guard's own counter before they are applied.
 
 ## Remaining risks
