@@ -55,9 +55,9 @@ markup.
 
 Phones are not a target: below about 820 pixels wide the panes stack one after another and stay usable.
 
-Last run: 18 October 2026, on fresh seed data (`docker compose down -v`, then `docker compose up --build -d`) with
-the version at commit `771b692`. All 20 steps ran in that order, in two browser tabs, and every step matched its
-"Expect" column. The steps ran in a 1366 by 768 window; step 19 was also measured at 1440 by 900 (three panes side
+The last full run before the release check used fresh seed data (`docker compose down -v`, then
+`docker compose up --build -d`) and the version at commit `771b692`. All 20 steps ran in that order, in two
+browser tabs, and every step matched its "Expect" column. The steps ran in a 1366 by 768 window; step 19 was also measured at 1440 by 900 (three panes side
 by side, the actions pane fixed while the history scrolled, no sideways scroll at either size). Step 18 included a
 call made through Swagger's "Try it out" as svc.mortgage. The service logged exactly the five refused writes of
 steps 7, 10, 12, 16 and 17, and no error. The two page fixes made just before that run (a space around a pasted
@@ -68,8 +68,8 @@ Since then the page changed twice: `83b4674` (a new status or page size forgets 
 release check, which removed the page-size choice because the queue has no pages ("Load more" appends the next ten).
 The seed also grew to twelve pending requests (`36b6b6d`).
 
-Release-check run: 19 October 2026, by the final independent review, on fresh seed data, with the page-size choice
-already removed. All 20 steps ran in order in two tabs at 1366 by 768, and every step matched its "Expect" column;
+Release-check run, by the final independent review, on fresh seed data, with the page-size choice already
+removed. All 20 steps ran in order in two tabs at 1366 by 768, and every step matched its "Expect" column;
 step 19 was also checked at 1440 by 900 and at 800 pixels wide. The log held exactly the five refused writes of steps
 7, 10, 12, 16 and 17, and no error. Two small page changes followed that run: "Reload request" now reloads the queue
 too, so a row never shows older terms than the request beside it, and with the demo identity off the demo strip and

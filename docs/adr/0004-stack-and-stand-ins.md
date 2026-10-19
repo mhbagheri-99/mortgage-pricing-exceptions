@@ -1,6 +1,6 @@
 # ADR 0004: The stack, and stand-ins for the systems around it
 
-Accepted, 17 October 2026.
+Accepted.
 
 ## Context
 

@@ -1,6 +1,6 @@
 # ADR 0001: Revisioned requests
 
-Accepted, 17 October 2026.
+Accepted.
 
 ## Context
 

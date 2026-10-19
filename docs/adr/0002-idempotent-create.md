@@ -1,6 +1,6 @@
 # ADR 0002: One request per application, and an idempotent create
 
-Accepted, 17 October 2026.
+Accepted.
 
 ## Context
 

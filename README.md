@@ -172,4 +172,9 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 | [`docs/production-readiness.md`](docs/production-readiness.md) | What changes before production, ranked by risk |
 | [`docs/agentic-sdlc.md`](docs/agentic-sdlc.md) | How AI agents built this under guardrails, how their output was checked, and what risks remain |
 | [`docs/history.md`](docs/history.md) | The phases, decisions and audit findings that commit messages name, and what became of each finding |
+
+## Time spent
+
+About 18 hours of my own time over two and a half days: about 6 on the design before any code, about 12 on
+building and reviewing with AI agents.
 | [`AGENTS.md`](AGENTS.md) | The working rules for any agent or person changing the code |

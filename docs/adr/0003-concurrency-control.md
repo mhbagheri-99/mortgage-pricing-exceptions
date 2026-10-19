@@ -1,6 +1,6 @@
 # ADR 0003: Concurrency control with a row lock
 
-Accepted, 17 October 2026.
+Accepted.
 
 ## Context
 
