@@ -32,11 +32,12 @@ const FIELDS = {
   revision: "Revision",
   outcome: "Outcome",
   status: "Status",
-  limit: "Per page",
   cursor: "Cursor",
 };
 
-const state = { me: readIdentity(), status: "PENDING_REVIEW", limit: 10, nextCursor: null, shownId: null };
+// The queue loads this many requests at a time; "Load more" asks for the next batch after the last one shown.
+const BATCH = 10;
+const state = { me: readIdentity(), status: "PENDING_REVIEW", nextCursor: null, shownId: null };
 // Every list load and every request open takes a number when it starts. An answer that arrives after a newer
 // one started (another tab, user or request chosen meanwhile) no longer matches and is dropped, never drawn.
 const latest = { list: 0, open: 0 };
@@ -159,14 +160,19 @@ async function start() {
   showWelcome();
   const result = await call("GET", "/demo/users");
   if (!result.ok) {
+    const off = result.status === 404;
     const note = $("identity-note");
-    note.textContent =
-      result.status === 404
-        ? "The demo identity is off, so this page cannot act as anyone. Start the service with DEMO_IDENTITY=true."
-        : `The user list did not load (${result.status || "no answer"}).`;
+    note.textContent = off
+      ? "The demo identity is off, so this page cannot act as anyone. Start the service with DEMO_IDENTITY=true."
+      : `The user list did not load (${result.status || "no answer"}).`;
     note.hidden = false;
     $("acting-as").disabled = true;
     clearList("Nobody to act as.");
+    if (off) {
+      // The strip and the welcome describe the demo identity; with it off, neither is true.
+      document.querySelector(".demo-strip").hidden = true;
+      showCase(emptyState("Nobody to act as", "This copy of the service runs without the demo identity."));
+    }
     return;
   }
   for (const user of result.data) {
@@ -225,7 +231,7 @@ async function loadList(more = false) {
     state.nextCursor = null;
     $("load-more").hidden = true;
   }
-  const params = new URLSearchParams({ status: state.status, limit: String(state.limit) });
+  const params = new URLSearchParams({ status: state.status, limit: String(BATCH) });
   if (more && state.nextCursor) params.set("cursor", state.nextCursor);
   const result = await call("GET", `${REQUESTS}?${params}`);
   if (mine !== latest.list) return; // a newer load, or a clear, started meanwhile
@@ -627,7 +633,12 @@ async function afterWrite(result, done, slot) {
     await loadList();
     return;
   }
-  const buttons = result.status === 409 ? [button("Reload request", () => openRequest(state.shownId, true))] : [];
+  // Reload the queue too, so the request's row shows the same terms as the request.
+  const reload = () => {
+    openRequest(state.shownId, true);
+    loadList();
+  };
+  const buttons = result.status === 409 ? [button("Reload request", reload)] : [];
   renderProblem(slot, result, buttons);
 }
 
@@ -657,10 +668,6 @@ function wireEvents() {
   for (const tab of document.querySelectorAll(".status-tabs button")) {
     tab.addEventListener("click", () => selectStatus(tab));
   }
-  $("limit").addEventListener("change", (event) => {
-    state.limit = Number(event.target.value);
-    loadList();
-  });
   $("load-more").addEventListener("click", () => loadList(true));
   $("new-request").addEventListener("click", openCreate);
   $("create-cancel").addEventListener("click", () => $("create-dialog").close());

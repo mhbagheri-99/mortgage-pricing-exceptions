@@ -23,22 +23,22 @@ by typing the address into a new tab; "Duplicate tab" copies the choice.
 | 2 | A, lead.fatima | Choose lead.fatima | "No request open"; New request; the Pending review tab, oldest first, ten of its twelve requests: MA-1002 (revision 1, 20 bps), MA-1003 (revision 2, 20 bps), then MA-1021 to MA-1028 (MA-1024 and MA-1028 at revision 2), and Load more |
 | 3 | A, lead.fatima | New request: MA-1006, 25, a reason; Create request | The form closes; MA-1006 opens at revision 1 with 25 bps and "Created the request for MA-1006"; the queue's first page is unchanged, because the newest request comes last; "What the mortgage process reads": "No approved discount yet: it reads NONE for MA-1006" |
 | 4 | A, lead.fatima | Look at MA-1006's actions | "Change the terms" only. No Approve button: under "Not available to you", "Approve or decline: You cannot decide a request you made" (four-eyes, from the server) |
-| 5 | A, lead.fatima | Load more, at the bottom of the queue; then Per page 2 | MA-1029, MA-1030 and MA-1006 are added after the first ten, and Load more disappears; at 2 per page the queue starts again from MA-1002 and MA-1003, with Load more |
+| 5 | A, lead.fatima | Load more, at the bottom of the queue | MA-1029, MA-1030 and MA-1006 are added after the first ten, and Load more disappears. There is no page-size choice: the queue loads ten at a time |
 | 6 | A, lead.fatima | New request again (the form still holds what was sent); Create request | "Already created: the same request came back as a replay, not a second request"; still one request for MA-1006 |
 | 7 | A, lead.fatima | New request for MA-1006 at 30 bps | Inside the form: 409 "This application already has a request", what is current now, and "Open the existing request", which closes the form and opens it |
 | 8 | B, rv.dana | New tab; choose rv.dana; Load more; open MA-1006 | No New request button, but "New requests: Only a relationship manager can create a request"; "Approve or decline revision 1" with "Your decision applies to revision 1 only: 25 bps (0.25%)"; "Change the terms: Only a relationship manager can revise a request" under "Not available to you" |
 | 9 | A, lead.fatima | Change the terms: 30 bps, a new reason; Send changes | "Sent: the request is now at revision 2" |
 | 10 | B, rv.dana | Type a comment; Approve (the page still shows revision 1) | 409 "The request changed since you read it", "You sent revision 1; the current revision is 2", "Now: revision 2, 30 bps (0.30%), pending review", and Reload request. Nothing else on the page changes |
-| 11 | B, rv.dana | Reload request; Approve | Revision 2 at 30 bps with the comment still typed; then "Approved: revision 2" and "Approved is final", no action forms, each action listed with why it is not available; "What the mortgage process reads" turns to "Approved discount: 30 bps (0.30%), revision 2, approved by rv.dana", and "Show the API response" shows the exact answer; the history reads Submitted, Amended, Approved; MA-1006 leaves the pending queue |
+| 11 | B, rv.dana | Reload request; Approve | Revision 2 at 30 bps with the comment still typed; then "Approved: revision 2" and "Approved is final", no action forms, each action listed with why it is not available; "What the mortgage process reads" turns to "Approved discount: 30 bps (0.30%), revision 2, approved by rv.dana", and "Show the API response" shows the exact answer; the history reads Submitted, Amended, Approved; MA-1006 leaves the pending queue: Load more now ends with MA-1029 and MA-1030 |
 | 12 | A, lead.fatima | Send changes on the form still open from before the approval | 409 "Not allowed in the request's current status"; Reload request: no forms, and "Change the terms: A request that is APPROVED cannot be revised" |
 | 13 | B, rv.dana | The Approved tab; then the Declined tab, and open MA-1005 | Approved: MA-1004 and MA-1006. Declined: MA-1005, "Declined by rv.erik at 2026-10-15 11:10:00 UTC, on revision 1", with its comment and a red marker in the history; "Approve or decline: A request that is DECLINED cannot be decided"; the mortgage process reads NONE |
 | 14 | B, rm.anna | Open MA-1005, her declined request; then MA-1003, rm.bram's | MA-1005: "Resubmit with new terms". MA-1003: no forms, "Only a reviewer can decide a request" and "Only the relationship manager who made the request can revise it" |
-| 15 | B, rm.anna | New request on MA-1001 whose reason is `<img src=x onerror="document.title='pwned'">` | The reason shows as that exact text; no image appears and the tab title stays "Pricing exceptions". Reset the database afterwards (`docker compose down -v`) |
-| 16 | A and B, rm.anna | Both tabs open MA-1001. B sends 35 bps. A changes only the reason and sends: 409. A clicks Reload request | A's form shows B's 35 bps and keeps A's new reason: a reload keeps only what was edited, never the old terms |
+| 15 | B, rm.anna | New request on MA-1001 whose reason is `<img src=x onerror="document.title='pwned'">` | The reason shows as that exact text; no image appears and the tab title stays "Pricing exceptions" |
+| 16 | A and B, rm.anna | Both tabs open MA-1001, the newest, at the end of the queue (Load more shows it). B sends 35 bps. A changes only the reason and sends: 409. A clicks Reload request | A's form shows B's 35 bps and keeps A's new reason: a reload keeps only what was edited, never the old terms |
 | 17 | B, rm.anna | New request on MA-1007 with the discount `abc` | Inside the form: 422 with "Discount: Input should be a valid integer"; nothing is created |
 | 18 | n/a | `/docs` | Swagger loads and works: the page's security policy is not sent there; requests and the list carry `permissions` |
 | 19 | n/a | A 1366 by 768 window, then 1440 by 900 | Queue, request and actions side by side; the actions stay in view while the history scrolls; nothing scrolls sideways |
-| 20 | n/a | Run a second copy with the demo identity off (below), open <http://localhost:8001/ui/> | "The demo identity is off, so this page cannot act as anyone"; the switcher is disabled and there is no New request button |
+| 20 | n/a | Run a second copy with the demo identity off (below), open <http://localhost:8001/ui/> | "The demo identity is off, so this page cannot act as anyone"; the switcher is disabled and there is no New request button; the yellow demo strip is gone, and the middle says "Nobody to act as" |
 
 Step 20 starts a temporary copy of the service on port 8001 and stops it afterwards:
 
@@ -50,6 +50,9 @@ docker compose run --rm -d --name pricing-identity-off -e DEMO_IDENTITY=false --
 docker stop pricing-identity-off
 ```
 
+When you finish, reset the database (`docker compose down -v`): step 15 leaves a request whose reason looks like
+markup.
+
 Phones are not a target: below about 820 pixels wide the panes stack one after another and stay usable.
 
 Last run: 18 October 2026, on fresh seed data (`docker compose down -v`, then `docker compose up --build -d`) with
@@ -57,6 +60,17 @@ the version at commit `771b692`. All 20 steps ran in that order, in two browser 
 "Expect" column. The steps ran in a 1366 by 768 window; step 19 was also measured at 1440 by 900 (three panes side
 by side, the actions pane fixed while the history scrolled, no sideways scroll at either size). Step 18 included a
 call made through Swagger's "Try it out" as svc.mortgage. The service logged exactly the five refused writes of
-steps 7, 10, 12, 16 and 17, and no error. The two page fixes made since the previous run (a space around a pasted
+steps 7, 10, 12, 16 and 17, and no error. The two page fixes made just before that run (a space around a pasted
 application id is dropped, and a late answer never replaces a newer choice) were checked separately in the
 browser, because no step here exercises them.
+
+Since then the page changed twice: `83b4674` (a new status or page size forgets the old Load more cursor), and the
+release check, which removed the page-size choice because the queue has no pages ("Load more" appends the next ten).
+The seed also grew to twelve pending requests (`36b6b6d`).
+
+Release-check run: 19 October 2026, by the final independent review, on fresh seed data, with the page-size choice
+already removed. All 20 steps ran in order in two tabs at 1366 by 768, and every step matched its "Expect" column;
+step 19 was also checked at 1440 by 900 and at 800 pixels wide. The log held exactly the five refused writes of steps
+7, 10, 12, 16 and 17, and no error. Two small page changes followed that run: "Reload request" now reloads the queue
+too, so a row never shows older terms than the request beside it, and with the demo identity off the demo strip and
+the welcome text are gone. Both were checked in the browser afterwards (steps 16 and 20).

@@ -264,8 +264,7 @@ textarea {
   font-weight: 400;
 }
 
-.acting-as select,
-.per-page select {
+.acting-as select {
   width: auto;
   max-width: 100%;
 }
@@ -417,15 +416,6 @@ button.decline {
 
 #load-more {
   flex: 1;
-}
-
-.per-page {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin: 0 0 0 auto;
-  color: var(--muted);
-  font-weight: 400;
 }
 
 /* ---- The case ---- */
