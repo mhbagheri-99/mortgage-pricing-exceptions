@@ -353,6 +353,8 @@ def test_text_that_is_not_valid_unicode_is_422_not_500(
 def test_a_create_with_the_database_down_is_refused_with_503(
     clock: TickingClock, caplog: pytest.LogCaptureFixture
 ) -> None:
+    # The call's first connection, the demo identity's user lookup, is the one that cannot connect: the 503
+    # comes before the create's own transaction, and nothing is written either way.
     down = TestClient(create_app(make_engine(UNREACHABLE), clock, demo_identity=True))
     caplog.clear()  # only what the call logs, not the start-up warning about the demo identity
     caplog.set_level(logging.INFO, logger="pricing_exceptions")

@@ -326,10 +326,11 @@ def test_a_wait_past_lock_timeout_is_503(
 def test_a_wait_for_a_pooled_connection_past_pool_timeout_is_503(
     client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Time limits: with every connection the pool can give in use, a write waits 3 s (pool_timeout) for
-    one, gives up with the pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s
-    budget, with nothing written. The connections are held in an ExitStack, so a failing test still hands them
-    all back to the next test."""
+    """Time limits: with every connection the pool can give in use, a write's first checkout (the demo
+    identity's user lookup, before the write's own transaction) waits 3 s (pool_timeout), gives up with the
+    pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s budget, with nothing
+    written. The connections are held in an ExitStack, so a failing test still hands them all back to the next
+    test."""
     with ExitStack() as held:
         for _ in range(POOL_CONNECTIONS):
             held.enter_context(engine.connect())

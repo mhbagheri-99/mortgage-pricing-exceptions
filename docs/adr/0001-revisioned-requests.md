@@ -43,7 +43,7 @@ lead.fatima changes it to 30 bps, rv.dana's approval of revision 1 gets 409, and
 ## Consequences
 
 - Clients send the revision they saw. A typo fix starts a new review.
-- **A change written before a decline lands as a resubmission** (audit finding F13). The revision check protects
+- **A change written before a decline lands as a resubmission** ([audit finding F13](../history.md#the-audits-findings)). The revision check protects
   the reviewer from stale terms; it does not tell the requester that a decline arrived while they were typing. We
   accept this: a resubmission only asks for a new review, nothing is approved until a reviewer names that revision,
   and the answer and the history show the decline. Each writer reads the clock under the row lock, so the

@@ -1,7 +1,7 @@
 """One throwaway PostgreSQL 18 for the whole test session, with the migrations applied once.
 
 Before every test the requests and their history are emptied and the seed runs again, so each test starts from
-the seeded data: 6 users, 20 applications and the 4 seeded requests (docs/architecture.md, "Testing").
+the seeded data: 6 users, 30 applications and the 14 seeded requests (docs/architecture.md, "Testing").
 """
 
 from collections.abc import Iterator

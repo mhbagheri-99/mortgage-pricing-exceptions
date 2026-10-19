@@ -31,7 +31,7 @@ the second inserts. This relies on READ COMMITTED, where each statement sees new
 The comparison uses the first submission, not the current row, because the row changes with every revision: a
 retry that arrives after an amendment must still be recognised as a retry.
 
-**Retries of revise and decide are not replays** (audit F26). A revise or decide that succeeded but lost its
+**Retries of revise and decide are not replays** ([audit F26](../history.md#the-audits-findings)). A revise or decide that succeeded but lost its
 answer gets 409 on retry (`stale-revision`, or `invalid-state` after an approval). Nothing is written twice, and
 `current` in the 409 shows the client whether its own change landed. Clients never retry a 409 blindly.
 

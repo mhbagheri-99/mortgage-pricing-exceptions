@@ -16,7 +16,7 @@ this repository's history; a test fails the build if one does not (`tests/agenti
   with a merge commit so every cited hash survives. Each phase opened with its open decisions, brought by the agent
   as options with a recommendation; **the human decided every one, and approved every commit and push.** The agent
   wrote all code, tests and documents.
-- **Who ran what.** One Claude Code session per phase did the work. The read-only reviewer agent and the parallel
+- **Who ran what.** One Claude Code session per phase, on Claude Opus, did the work. The read-only reviewer agent and the parallel
   side sessions (four in the hardening phase, one for these documents, one for the release check) ran on Claude
   Sonnet, each side session touching only its own files and committing nothing; the phase session reviewed their
   diffs and made every commit.
@@ -36,16 +36,16 @@ this repository's history; a test fails the build if one does not (`tests/agenti
 | [`AGENTS.md`](../AGENTS.md), loaded by `CLAUDE.md` | Agents relearn conventions every session and drift from them | Advice only, which is why the rest exists | n/a | Followed mostly, not always (see "What the agents got wrong") |
 | Approval rules (`.claude/settings.json`): asking before an edit to `.claude/`, `scripts/check.py`, `.github/`, `pyproject.toml`, `uv.lock` or `docs/requirements.md`, before adding, removing or upgrading a package, and before every commit and push; refusing force push, hard reset and force-add | An agent stuck on a red check "fixes" the check instead of the code, adds a dependency casually, or destroys work | A live run after the first phase: the rules refused `git push --force` and `git -C . push -f`, and an edit to `pyproject.toml` raised the approval prompt | It prevents rather than catches; the live run is its evidence | Rules match the command text, so an unusual spelling can slip past; a shell write (`sed -i`) bypasses file rules; the human may approve without reading |
 | Test-integrity guard (`.claude/hooks/test_integrity.py`), before every edit under `tests/` | Making a failing test pass by skipping it or deleting its asserts | It parses the file before and after: an added skip or xfail is refused; a removed assert, `pytest.raises`, test function or requirement marker asks the human; it fails closed (an unreadable file, a crash or an unknown editing tool asks). Its own tests feed it sample edits | 2 refusals (both deliberate probes of a skip) and 3 questions: two FR-1 requirement markers removed from a domain test file on purpose (approved), one assert replaced by a plain call (approved) | An assert weakened in place (`==` to `>=`) keeps the count; an edit made through the shell is never seen. Three such shell edits by the agent are listed below |
-| Finish check (`.claude/hooks/finish_check.py`), when the agent stops | The agent says "done" while a gate is red | It runs the fast gates and blocks the stop when one fails; its tests cover pass, block, a hung gate and the loop guard | 4 blocks: the live demo (`import sqlalchemy` in the domain), a red test left in the tree, and two lint failures from parallel sessions | It blocks once in a row, so a second stop goes through (audit F34); it runs only inside Claude Code, so CI repeats every gate |
+| Finish check (`.claude/hooks/finish_check.py`), when the agent stops | The agent says "done" while a gate is red | It runs the fast gates and blocks the stop when one fails; its tests cover pass, block, a hung gate and the loop guard | 4 blocks: a deliberate `import sqlalchemy` in the domain, shown to the human after the first phase (repeat it by adding that import and ending a turn), a red test left in the tree, and two lint failures from parallel sessions | It blocks once in a row, so a second stop goes through (audit F34); it runs only inside Claude Code, so CI repeats every gate |
 | The gates (`scripts/check.py`), run by the finish check, by `/check` and by CI | Stale or forbidden APIs, layer violations, untyped code, invented or forgotten requirements, and ways round a guard | ruff (with banned APIs: psycopg2, the ORM and query builder, `pydantic.v1`, `utcnow`, `time.sleep`), mypy strict, three import-linter contracts, the requirement-id gate, scans for skip markers, overriding config files, non-standard domain imports, `noqa` comments that hide a banned API and `conftest.py` hooks that hide tests; the test run fails if any test was skipped, xfailed, deselected, or written but never run. Each scan has its own tests | A stale import-linter cache reporting a removed import (now run without a cache); the audit's three one-line ways to hide a failing test (F19), fixed red first in `4ec0c00` and `655af94` | An early `return` in a test still passes; code running inside the test process can always tamper with what it reports (see "Remaining risks") |
 | Requirement-id gate | Agents silently drop or invent requirements | Every test that proves a requirement carries its id; the gate fails on an unknown id, and on a requirement with no test once its phase is finished | Reviews, not the gate, found two markers that would have let it pass without the real test: N9 on a settings test (removed in the first phase, before the guard was live in the session) and FR-1 on domain tests (removed through the guard's two questions) | It proves a test exists, not that it is strong; mutation testing and review cover strength |
-| Red first (`/red-first`) | Tests written after the code mirror the code | The history shows each failing test committed before the code that passes it; the reviewer checked that no test changed between the two | 12 pairs, listed below | A wrong specification gives confidently wrong tests |
+| Red first (`/red-first`) | Tests written after the code mirror the code | The history shows each failing test committed before the code that passes it; no commit that passes a failing test weakened it (three of them also touched tests, said below) | 13 pairs, listed below | A wrong specification gives confidently wrong tests |
 | Red runs | A test that cannot fail proves nothing | The guard itself is removed as a temporary edit, the test is watched failing, the guard is restored and `git diff` on the source is checked empty | See "Red runs" | Done by hand, for chosen guards |
 | Mutation testing (mutmut, domain only) | Agent-written tests that run code but check little | Small deliberate bugs in the domain's functions; each surviving one becomes a stronger test, seen failing first | 46 weak spots, all closed (see "Mutation testing") | The domain only, and a report, not a gate |
-| Read-only reviewer agent (`.claude/agents/rules-reviewer.md`, `/review-rules`) after each phase | A solo developer has no second reviewer | It may only read; each finding is fixed or rejected with a reason, checked against the files first | 40 findings over eight passes, below | The same model family shares blind spots; its own invariant on the order of checks was stale until F7 |
+| Read-only reviewer agent (`.claude/agents/rules-reviewer.md`, `/review-rules`) after each phase | A solo developer has no second reviewer | It may only read; each finding is fixed or rejected with a reason, checked against the files first | 44 findings over nine passes, below | The same model family shares blind spots; its own invariant on the order of checks was stale until F7 |
 | Automated security reviews of the first phase | Ways for an agent to dodge the gates | Reviews of the guardrail commits and of the first push | The first two found sidesteps, fixed in `f8b04c1` and `b9a0678`; a third found more ways for code inside the test process to fool the gates, which is where the scans stop; the review of the push found the demo port open on every network interface, fixed in `e3b78c9` | The point where we stopped adding scans is explained below |
-| Independent audit against the client's needs | The agents and the reviewer share the design's assumptions | Another model, in a fresh clone, with no design document | 43 findings, 8 medium, none high; every one checked against the files before it was accepted (appendix) | One audit, by a model of the same vendor |
-| Release check | The README reads well to the people who wrote it, who know what it leaves out; a secret or private file reaches the public history | A side session with nothing but a fresh clone followed the README word for word and timed it. gitleaks scanned a mirror of every branch and pull request, and a sweep read every path, file, commit message and pull-request text for private files and words; each scanner was first shown catching a planted case | Every step passed in under 4 minutes on a warm machine; 6 unclear places in the README, none blocking, all fixed; both scans clean | One run, on one machine, with the images already downloaded |
+| Independent audit against the client's needs | The agents and the reviewer share the design's assumptions | Another model, in a fresh clone, with no design document | 43 findings, 8 medium, none high; every one checked against the files before it was accepted ([build history](history.md#the-audits-findings)) | One audit, by a model of the same vendor |
+| Release check | The README reads well to the people who wrote it, who know what it leaves out; a secret or private file reaches the public history | A side session with nothing but a fresh clone followed the README word for word and timed it. gitleaks scanned a mirror of every branch and pull request, and a sweep read every path, file, commit message and pull-request text for private files and words; each scanner was first shown catching a planted case | Every step passed in under 4 minutes on a warm machine; 6 unclear places in the README, none blocking, and 2 more found while checking them, all fixed; both scans clean | One run, on one machine, with the images already downloaded |
 | The human | Everything above can be approved without reading | Every decision, commit and push needed the human's go-ahead | n/a | Fatigue at the end of a long day |
 
 The **guardrail log** (`.claude/logs/guardrails.jsonl`, local, ignored by git) holds one line per refusal,
@@ -68,6 +68,7 @@ guard, and 4 blocks from the finish check, each listed above.
 | `41b07e9` | `81a47a0` | The audit's API findings |
 | `4ec0c00` | `655af94` | The test gate counts tests written but never run |
 | `9b30136` | `a47f338` | The test guard triggers for every file-editing tool |
+| `f335f47` | `36b6b6d` | The seeded review queue spans more than one page |
 
 Red commits carry a skeleton with no behaviour, so a test fails on the missing behaviour rather than an import
 error. The first red commit's message overstated this (F35): of its 69 failing cases, 51 failed on the skeleton's
@@ -78,6 +79,12 @@ In three pairs (`4ec0c00` and `655af94`, `9b30136` and `a47f338`, `41b07e9` and 
 seconds apart in one group the human approved, so the history shows their order but not a separate run; the
 failing run was watched before the commit.
 
+In three other pairs the passing commit also changed test files, without weakening a failing test: `db912d5`
+reflowed a docstring; `88488e2` adapted two older tests to the new `permissions` field (a replay is read back by
+the same caller, whose permissions it carries, and a 409's `current` is compared without them); `ca003be` added
+eight more banned markup sinks to the page test, a stronger check. The other ten passing commits leave `tests/`
+untouched (`git diff <red> <green> -- tests/`).
+
 Where the behaviour already existed (the race tests, the backstops, the demo scenario), the tests went in green and
 red runs showed they bite.
 
@@ -85,7 +92,7 @@ red runs showed they bite.
 
 | Guard removed (temporary edit) | Result |
 | --- | --- |
-| `FOR NO KEY UPDATE` dropped from the row lock | 6 of the 11 race cases failed. Two reviewers: a 500, from the decision index. **Three silent lost updates, each answered 200**: an old revision approved over an amendment, an approval overwritten by an amendment, and a change after a decline landing as an amendment instead of a resubmission |
+| `FOR NO KEY UPDATE` dropped from the row lock | 6 of the 11 cases then in `test_races.py` failed (a twelfth, the pool time limit, came later). Two reviewers: a 500, from the decision index. **Three silent lost updates, each answered 200**: an old revision approved over an amendment, an approval overwritten by an amendment, and a change after a decline landing as an amendment instead of a resubmission |
 | The engine at REPEATABLE READ instead of READ COMMITTED | 7 failed: every waiter got 503, a serialization failure (40001), the create replay among them |
 | `lock_timeout` removed | Both lock-wait cases failed: the wait ended at the 3-second statement limit (57014) instead of 2 seconds (55P03) |
 | `transaction_timeout` removed | The stuck-transaction test failed: the transaction was never ended |
@@ -124,6 +131,7 @@ the integration tests catch. A test now pins every enum's text (`771b692`), seen
 | Proving the guarantees | 3 | 3 | 0 |
 | The page (two passes) | 6 | 6 | 0 |
 | Final pass over the whole codebase | 5 | 5 | 0 |
+| The release check | 4 | 4 | 0 |
 
 The final pass covered every tracked file and confirmed the invariants it checks: the layers, static SQL only, the
 plain conflict target, READ COMMITTED, the lock by primary key, every response built by `read_request()`, the
@@ -185,88 +193,8 @@ Each of these is real, found by a gate, a test, a review, the audit or the agent
   and the human's review of every commit are the backstop; a session that must ask should run in a mode that asks.
 - **The human.** Every control ends in a human approval, which is only as good as the reading behind it.
 
-## Identifiers you will meet in the history
+## The history
 
-Commit messages and code comments name phases, decisions and audit findings.
-
-| Phase | What it built | Pull request, merge commit |
-| --- | --- | --- |
-| P1 | The skeleton and every guardrail | #1, `1a53c0e` |
-| P2 | The pure domain | #2, `6ee5dc1` |
-| P3 | Create with replay, get with history, the queue, the approved discount, the identity stand-in, problem details, the seed | #3, `4bcd63a` |
-| P4 | Revise and decide under a row lock | #4, `22e9ce1` |
-| P5 | The race, time-limit and backstop tests | #5, `e8fa2ab` |
-| P7 | The page, and `permissions` in every response | #6, `108d583` |
-| P8a | The audit's fixes, mutation testing, the final review | #7, `34ca7b3` |
-| P6 | These documents, the demo scenario and the cited-commit check | #8, `7164e98` |
-| P8b | The release check: a timed run from a fresh clone, a secret and privacy scan of the whole history, two demo rehearsals | the pull request that adds this line |
-
-P6 was paused after its decisions, so the documents could describe the finished system.
-
-| Design decision | Where it lives now |
-| --- | --- |
-| D1 stakeholder conflict, D2 revision rules | [ADR 0001](adr/0001-revisioned-requests.md) |
-| D3 idempotent create, D5 one request per application | [ADR 0002](adr/0002-idempotent-create.md) |
-| D4 concurrency control | [ADR 0003](adr/0003-concurrency-control.md) |
-| D6 identity stand-in, D13 architecture style | [ADR 0004](adr/0004-stack-and-stand-ins.md), and [architecture](architecture.md), "Layers" |
-| D7 error format | [architecture](architecture.md), "Errors" |
-| D8 data model | [architecture](architecture.md), "Data model" |
-| D9 test strategy | [architecture](architecture.md), "Testing" |
-| D10 agentic SDLC | This page |
-| D11 the page | [architecture](architecture.md), "The page" |
-| D12 the documents | The README, "Where to read more" |
-| D14 business rules left out | [Production readiness](production-readiness.md), and the README's scope choices |
-
-F1 to F43 are the audit's findings, below. FR-n and Nn are the requirements in [`requirements.md`](requirements.md).
-
-## Appendix: the audit's findings
-
-The audit ran on the repository at `108d583`, judged against the client's needs alone. Every gate passed and every
-need was met; it raised 43 findings, 8 medium (F1, F3, F4, F6, F7, F13, F14, F19) and none high. Each was checked
-against the files, at the exact line, before it was accepted.
-
-| # | Finding | Outcome |
-| --- | --- | --- |
-| F1 | A fresh database had four free applications; a walk-through ran out | Fixed: 20 applications, 16 free (`41b07e9`, `81a47a0`); the release check seeded ten more, all pending, and kept 16 free |
-| F2 | Every `request-exists` said "revise it instead", wrong for approved requests and other managers | Fixed: the detail states only the fact (same commits) |
-| F3 | One request per application, for its whole life | Kept, defended in [ADR 0002](adr/0002-idempotent-create.md); production readiness item 4 |
-| F4 | A replay answers 201 with the request as it is now | Kept, explained in ADR 0002 |
-| F5 | `requirements.md` claimed a CI step checks latency (N10) | Fixed: N10 is stated as not measured (`6552f88`) |
-| F6 | About 113 comments cited a design document that does not ship | Fixed: each points to a shipped document or gives its reason (this pull request) |
-| F7 | `AGENTS.md` and the reviewer put the lock before the role | Fixed (`6552f88`) |
-| F8 | `/` was a JSON 404; Swagger needs internet | Fixed: `/` redirects to the page; the README says Swagger needs internet |
-| F9 | Swagger showed none of the real errors or headers | Fixed: every route declares its problems and headers (`41b07e9`, `81a47a0`) |
-| F10 | No browser test of the page | Rejected: a manual checklist, run in full; a browser test is on the later list |
-| F11 | The checklist's "last run" note was inaccurate | Fixed: all 20 steps rerun at `771b692` (`66be5de`) |
-| F12 | No lookup by application id; unknown query parameters ignored | Production readiness items 3 and 10 |
-| F13 | A change written before a decline lands as a resubmission | Kept, defended in [ADR 0001](adr/0001-revisioned-requests.md) |
-| F14 | Declined terms can come back unchanged to another reviewer | Kept, defended in ADR 0001; refusing them is on the later list |
-| F15 | `latest_decision` shows an earlier decline beside PENDING_REVIEW | Explained in [architecture](architecture.md), "Reading a response" |
-| F16 | Limits the client never set are enforced as constants | Stated in the README's assumptions |
-| F17 | No database backstop for "approved never changes" | Production readiness item 5 |
-| F18 | CI's start check fetched only `/health` | Fixed: a signed-in call and the page too (`6552f88`) |
-| F19 | Three one-line edits could hide a failing test from every gate | Fixed red first (`4ec0c00`, `655af94`); an early `return` stays a stated risk |
-| F20 | A retry test sent the wrong terms | Fixed (`c7771ca`) |
-| F21 | The applications' label is unused | Rejected: harmless; loan origination replaces the table |
-| F22 | NONE covers pending, declined and no request alike | Explained in architecture, "What the mortgage process reads" |
-| F23 | The history test never showed two decisions | Fixed (`c7771ca`) |
-| F24 | Who and when appear under three pairs of names | Explained in architecture, "Reading a response" |
-| F25 | A replayed create wrote no log line | Fixed: one INFO line (`41b07e9`, `81a47a0`) |
-| F26 | A retried revise or decide gets 409 | Kept, explained in ADR 0002: `current` shows whether the change landed |
-| F27 | The migrations are found next to the source (editable install only) | Production readiness item 8 |
-| F28 | Prerequisites, a minimum uv version, no Windows-on-ARM build | Stated in the README |
-| F29 | The integration tests need Docker | Stated in the README |
-| F30 | The container's entry point listens on every interface | Rejected: it runs in a container; [architecture](architecture.md) says what to run outside one |
-| F31 | A resubmitted request keeps its place in the queue | Explained in architecture, "Listing" |
-| F32 | The pool time limit was never exceeded in a test | Fixed: a pool-exhaustion test (`c7771ca`) |
-| F33 | More requirement markers | Rejected: a test claims only the requirement it proves on its own |
-| F34 | `AGENTS.md` overstated the finish check | Fixed (`6552f88`) |
-| F35 | A red commit message overstated its evidence | Stated precisely above, under "Red first, in the history" |
-| F36 | Nothing asked before changing `uv.lock` | Fixed: approval rules added (`6552f88`) |
-| F37 | The page sent the application id untrimmed; the error showed a regular expression | Fixed (`81a47a0`, `253f91d`) |
-| F38 | Quick switches could draw stale rows or another user's buttons | Fixed (`253f91d`) |
-| F39 | The page has no requirement id | Rejected: no listed requirement covers it; the checklist is its proof |
-| F40 | Every start migrates and seeds | Production readiness item 8 |
-| F41 | The database container had no restart policy | Fixed (`6552f88`) |
-| F42 | The seed test never reseeded after a change | Fixed (`41b07e9`) |
-| F43 | The size of the guardrails | Answered on this page: each control is tied to the failures it prevents |
+Commit messages and code comments name build phases (P1 to P8b), design decisions (D1 to D14) and audit
+findings (F1 to F43). [Build history](history.md) says what each one is, and what became of every audit
+finding.

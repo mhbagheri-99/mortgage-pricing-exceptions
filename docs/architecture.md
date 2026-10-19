@@ -174,7 +174,7 @@ blindly; they read `current`, then decide. They may retry a create freely, and a
   only what is allowed and shows the reason for the rest.
 - **`latest_decision`** is the newest decision in the history, with the revision it judged. After a decline and a
   resubmission, the request is `PENDING_REVIEW` while `latest_decision` still shows the decline of the earlier
-  revision: that is the decline the resubmission answers (audit F15). Compare its `revision` with the request's.
+  revision: that is the decline the resubmission answers ([audit F15](history.md#the-audits-findings)). Compare its `revision` with the request's.
 - **Who and when** appear under three names (F24): `actor` and `occurred_at` on each history event,
   `decided_by` and `decided_at` in `latest_decision`, and `approved_by` and `approved_at` in what the mortgage
   process reads. They are the same person and time for the approval.
@@ -212,8 +212,8 @@ final, so what it read never changes.
 
 ## Time limits
 
-Every wait has a limit, and in the normal case the server gives up before a client's 10-second timeout, so a timeout
-is rarely ambiguous:
+Every wait has a limit, and in the normal case the server gives up before a client's 10-second timeout (an
+assumption: the requirements name no client timeout), so a timeout is rarely ambiguous:
 
 | Limit | Value | When it passes |
 | --- | --- | --- |
@@ -268,7 +268,7 @@ the seed runs again, so each test starts from the seeded data: 6 users, 30 appli
 | Level | What it proves | Functions (cases) |
 | --- | --- | --- |
 | Domain | Every status, action and user against its expected outcome and exact error; bounds; four-eyes; revision binding; who and when from a fixed clock; `permissions` agree with the actions | 35 (193) |
-| API | Status codes, headers, problem bodies, identity on and off, replay, history, pagination, the consumer's view, log lines, atomicity | 63 (206) |
+| API | Status codes, headers, problem bodies, identity on and off, replay, history, pagination, the consumer's view, log lines, atomicity | 64 (207) |
 | Demo scenario | The 12 steps of [`demo.http`](demo.http) on the seeded data, and that the file lists the same steps | 2 (2) |
 | Database backstops | Each constraint refuses a bad row written with raw SQL | 9 (26) |
 | Races and time limits | Two writers at once, deterministically; 503 at each time limit | 11 (12) |

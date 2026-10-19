@@ -15,7 +15,7 @@ One stakeholder wants managers to keep amending the discount; the other wants ev
 the terms reviewed. Both get what they need: **every change is a new numbered revision, and a reviewer
 approves or declines one specific revision.** If the terms changed since the reviewer read them, the decision is
 refused with 409 and the current terms, so nobody approves something they did not see. An approved request never
-changes. A declined one can be resubmitted with new terms. The reasons and the trade-offs are in
+changes. A declined one can be resubmitted as a new revision. The reasons and the trade-offs are in
 [ADR 0001](docs/adr/0001-revisioned-requests.md).
 
 ## Run it
@@ -86,7 +86,9 @@ This runs every gate, as CI does: ruff, mypy, the layer contracts, the requireme
 guardrail being dodged, and all the tests. It takes about 2 minutes and prints one PASS line per gate, eight in all,
 then `every gate passed`. The integration tests start their own PostgreSQL in Docker, so Docker
 must be running; `--fast` runs the gates that need no Docker. [`docs/requirements.md`](docs/requirements.md) lists
-each requirement; every test that proves one carries its id.
+each requirement; every test that proves one carries its id. What each level of tests proves, with counts, is in
+[architecture](docs/architecture.md), "Testing"; the runs that removed a guard and watched the tests fail are in
+[agentic SDLC](docs/agentic-sdlc.md), "Red runs".
 
 A mutation report on the domain (229 small deliberate bugs, of which 228 are caught; the one survivor changes no
 behaviour) reruns in under a minute from Git Bash or any POSIX shell, in a throwaway Linux container. It prints
@@ -118,6 +120,7 @@ The requirements leave these open; each is our reading, with its cost.
 | What the mortgage process reads | The approved discount, or `NONE` for anything not approved (no request, pending, declined) | It pulls when it prices an offer |
 | Identity | `X-User-Id` against seeded users, only with `DEMO_IDENTITY=true` | Anyone can act as anyone in the demo |
 | Time and money | UTC times from the server; integer basis points | Percentages only in the page |
+| Calling systems' timeout | About 10 seconds; the service's own limits, and the one case that can pass it, are in [architecture](docs/architecture.md), "Time limits" | The real timeout is unknown; the limits are set in one place |
 
 How to read `latest_decision`, the three names for who decided and when, and the queue order after a
 resubmission: [architecture](docs/architecture.md), "Reading a response" and "Listing".
@@ -141,6 +144,8 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 - **`uv sync` fails on Windows on ARM:** the database driver has no build there; run the service with Docker.
 - **The integration tests fail at start-up:** Docker is not running.
 - **`curl -I` gets 405:** the service answers GET, and `curl -I` sends HEAD. Use `curl -i`, or a browser.
+- **`curl` to `localhost` takes about 0.2 s on Windows:** it tries IPv6 first, and the port is published on
+  `127.0.0.1` only. Use `http://127.0.0.1:8000`; the service itself answers in a few milliseconds.
 
 ## Where to read more
 
@@ -150,4 +155,5 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 | [`docs/architecture.md`](docs/architecture.md) | Diagrams, the API in detail, time limits, logging, security, testing, and the rules nobody may break |
 | [`docs/production-readiness.md`](docs/production-readiness.md) | What changes before production, ranked by risk |
 | [`docs/agentic-sdlc.md`](docs/agentic-sdlc.md) | How AI agents built this under guardrails, how their output was checked, and what risks remain |
+| [`docs/history.md`](docs/history.md) | The phases, decisions and audit findings that commit messages name, and what became of each finding |
 | [`AGENTS.md`](AGENTS.md) | The working rules for any agent or person changing the code |

@@ -52,15 +52,17 @@ conflict with the share lock a foreign-key check takes, so it cannot cause lock-
 Deterministic race tests on a real PostgreSQL (`tests/integration/test_races.py`): the test's own connection takes
 the lock and holds it, the real API call starts in a thread, and a barrier polls `pg_stat_activity` until that
 call is waiting on the lock. Then the test commits its own change and checks the exact outcome. No sleeps and no
-luck. With `FOR NO KEY UPDATE` removed as a temporary edit, 6 of the 11 race cases failed, and three of them were
+luck. With `FOR NO KEY UPDATE` removed as a temporary edit, 6 of the 11 cases then in that file failed, and three of them were
 silent lost updates answered 200 ([agentic SDLC](../agentic-sdlc.md), "Red runs").
 
 ## Consequences
 
-- A lock is held while a few lines of Python run: microseconds here. A waiter holds a thread and a database
-  connection for at most 2 seconds.
+- A lock is held for a few milliseconds: the rule's few lines of Python, then the update, the history event, the
+  read of the answer and the commit. A waiter holds a thread and a database connection for at most 2 seconds.
 - The lock covers one row, so writers on different requests never wait for each other. Several app instances are
-  safe, because the lock and every invariant live in PostgreSQL, not in memory.
+  safe while serving requests, because the lock and every invariant live in PostgreSQL, not in memory; starting
+  them together is another matter (their migrations would race, [production readiness](../production-readiness.md)
+  item 8).
 - READ COMMITTED must stay pinned on the engine; the create replay ([ADR 0002](0002-idempotent-create.md)) relies
   on it too. A test asserts it on a pooled connection.
 
@@ -68,7 +70,7 @@ silent lost updates answered 200 ([agentic SDLC](../agentic-sdlc.md), "Red runs"
 
 | Alternative | Why not |
 | --- | --- |
-| A version column with compare-and-set (optimistic locking) | Lock-free and familiar, but a second counter beside the revision and a separate failure path for a lost race. The revision already guards the minutes a reviewer spends reading; the lock only covers the microseconds of the write |
+| A version column with compare-and-set (optimistic locking) | Lock-free and familiar, but a second counter beside the revision and a separate failure path for a lost race. The revision already guards the minutes a reviewer spends reading; the lock only covers the milliseconds of the write |
 | SERIALIZABLE or REPEATABLE READ | A conflict becomes a serialization failure the server must retry. With the engine at REPEATABLE READ, as a temporary edit, every waiter in the race tests got 503 |
 | `FOR UPDATE` | Stronger than a non-key change needs, and it conflicts with foreign-key checks |
 | Rely on the unique indexes alone | They stop a second decision, but a change racing an approval would surface as a 500, not a precise 409 |
