@@ -248,24 +248,50 @@ def test_the_queue_walk_reaches_every_request_once_oldest_first(
         )
 
     pages = walk(client, limit=2)
-    assert [len(page) for page in pages] == [2, 2, 2], "a full last page still ends the walk"
+    assert [len(page) for page in pages] == [2] * 8, "a full last page still ends the walk"
     walked = [item for page in pages for item in page]
     ids = [item["id"] for item in walked]
-    assert len(set(ids)) == len(ids) == 6
+    assert len(set(ids)) == len(ids) == 16  # the twelve seeded, then the four created here
     assert [item["application_id"] for item in walked[:2]] == ["MA-1002", "MA-1003"]  # seeded on 15 October
     order = [(datetime.fromisoformat(str(item["created_at"])), UUID(str(item["id"]))) for item in walked]
     assert order == sorted(order), "oldest first, the id breaking ties"
     assert all(set(item) == LIST_FIELDS for item in walked), "list fields only; history stays in GET"
-    assert [len(page) for page in walk(client, limit=5)] == [5, 1]
+    assert [len(page) for page in walk(client, limit=5)] == [5, 5, 5, 1]
     assert walk(client, limit=200) == [walked]
+
+
+# The review queue on a fresh database: the two pending requests of the four situations, then the ten more
+# seeded so the queue spans pages, all on 15 October, oldest first.
+SEEDED_QUEUE = ["MA-1002", "MA-1003", *(f"MA-{number}" for number in range(1021, 1031))]
+
+
+@pytest.mark.req(id="FR-7")
+def test_the_seeded_queue_needs_a_second_page_at_the_pages_default_size(client: TestClient) -> None:
+    """Twelve requests await review on a fresh database, more than the page's default of ten, so "Load more"
+    shows without changing the page size. Two of the ten were changed once, so the queue also holds revision 2
+    beyond MA-1003, each with its history."""
+    pages = walk(client, limit=10)
+    assert [len(page) for page in pages] == [10, 2]
+    queue = [item for page in pages for item in page]
+    assert [item["application_id"] for item in queue] == SEEDED_QUEUE
+    assert {item["application_id"]: item["revision"] for item in queue if item["revision"] != 1} == {
+        "MA-1003": 2,
+        "MA-1024": 2,
+        "MA-1028": 2,
+    }
+    history = client.get(f"{REQUESTS}/{seeded_id(1024)}", headers=as_user("rv.dana")).json()["history"]
+    assert [(e["event_type"], e["revision"], e["actor"], e["discount_bps"]) for e in history] == [
+        ("SUBMITTED", 1, "rm.bram", 10),
+        ("AMENDED", 2, "rm.bram", 15),
+    ]
 
 
 @pytest.mark.req(id="FR-7")
 @pytest.mark.parametrize(
     ("status", "applications"),
     [
-        pytest.param(None, ["MA-1002", "MA-1003"], id="pending by default"),
-        pytest.param("PENDING_REVIEW", ["MA-1002", "MA-1003"], id="pending"),
+        pytest.param(None, SEEDED_QUEUE, id="pending by default"),
+        pytest.param("PENDING_REVIEW", SEEDED_QUEUE, id="pending"),
         pytest.param("APPROVED", ["MA-1004"], id="approved"),
         pytest.param("DECLINED", ["MA-1005"], id="declined"),
     ],

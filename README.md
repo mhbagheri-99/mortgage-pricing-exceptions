@@ -15,7 +15,7 @@ One stakeholder wants managers to keep amending the discount; the other wants ev
 the terms reviewed. Both get what they need: **every change is a new numbered revision, and a reviewer
 approves or declines one specific revision.** If the terms changed since the reviewer read them, the decision is
 refused with 409 and the current terms, so nobody approves something they did not see. An approved request never
-changes. A declined one can be resubmitted with new terms. The reasons and the trade-offs are in
+changes. A declined one can be resubmitted as a new revision. The reasons and the trade-offs are in
 [ADR 0001](docs/adr/0001-revisioned-requests.md).
 
 ## Run it
@@ -28,9 +28,11 @@ it installs Python 3.15 for the project by itself.
 docker compose up --build
 ```
 
-Open <http://localhost:8000/>, which redirects to the page at `/ui/`. The first build downloads the images and
-packages; later starts take seconds. The container applies the database migration and the seed data on every start;
-both are idempotent.
+The command keeps running and shows the service's log; Ctrl+C stops it. Use a second terminal for the commands
+below, or add `-d` to run it in the background. Then open <http://localhost:8000/> in a browser: it redirects to the
+page at `/ui/`. The first build downloads the base images (about 210 MB) and the Python packages; after that, a
+build and start take about 20 seconds. The container applies the database migration and the seed data on every
+start; both are idempotent.
 
 **Reset** to fresh seed data (this deletes the database):
 
@@ -47,7 +49,14 @@ docker compose down -v
 - **Swagger**, <http://localhost:8000/docs>: every endpoint, its errors and its headers. Swagger loads its files from
   a CDN, so it needs internet access; the page does not.
 - **[`docs/demo.http`](docs/demo.http)**: the 12-step demo as plain HTTP calls, one click each in VS Code's REST
-  Client extension. A test replays the same steps, so the demo cannot silently break.
+  Client extension. A test replays the same steps, so the demo cannot silently break. Without VS Code, send the same
+  calls from Swagger, or with curl from Git Bash or any POSIX shell; step 2, for example:
+
+  ```bash
+  curl -i http://localhost:8000/api/v1/pricing-exception-requests -H "X-User-Id: lead.fatima" \
+    -H "Content-Type: application/json" \
+    -d '{"application_id": "MA-1006", "discount_bps": 25, "reason": "Retention: competitor offer 25 bps below standard"}'
+  ```
 
 Every call names its user in the `X-User-Id` header, a stand-in for real sign-in that works only because Compose
 sets `DEMO_IDENTITY=true` (without it, every call is 401). The seeded users are fictional:
@@ -57,11 +66,14 @@ sets `DEMO_IDENTITY=true` (without it, every call is 401). The seeded users are 
 | `rm.anna`, `rm.bram` | Relationship manager |
 | `rv.dana`, `rv.erik` | Reviewer |
 | `lead.fatima` | Both, to show that holding the reviewer role is not enough to approve your own request |
-| `svc.mortgage` | The mortgage process's service account: it only reads approved discounts, through the API |
+| `svc.mortgage` | Mortgage process: the service account that reads approved discounts, through the API only |
 
-Applications **MA-1001 to MA-1020** exist. MA-1002 to MA-1005 already hold a request, one in each situation
-(pending, changed and pending, approved, declined), so **16 are free for new requests**: MA-1001 and MA-1006 to
-MA-1020. Each application takes one request for good; reset when they run out.
+Applications **MA-1001 to MA-1030** exist. MA-1002 to MA-1005 already hold a request, one in each situation
+(pending, changed and pending, approved, declined), and MA-1021 to MA-1030 hold ten more awaiting review, so **16
+are free for new requests**: MA-1001 and MA-1006 to MA-1020. Each application takes one request for good; reset
+when they run out. The list of requests is the review queue: it shows pending requests unless you ask for
+`?status=APPROVED` or `?status=DECLINED`, and the page has a tab for each. Twelve requests are pending on a fresh
+database, more than the page shows at once, so "Load more" pages through them.
 
 ## Test it
 
@@ -71,19 +83,23 @@ uv run python scripts/check.py --all
 ```
 
 This runs every gate, as CI does: ruff, mypy, the layer contracts, the requirement-id gate, the scans that stop a
-guardrail being dodged, and all the tests. The integration tests start their own PostgreSQL in Docker, so Docker
+guardrail being dodged, and all the tests. It takes about 2 minutes and prints one PASS line per gate, eight in all,
+then `every gate passed`. The integration tests start their own PostgreSQL in Docker, so Docker
 must be running; `--fast` runs the gates that need no Docker. [`docs/requirements.md`](docs/requirements.md) lists
-each requirement; every test that proves one carries its id.
+each requirement; every test that proves one carries its id. What each level of tests proves, with counts, is in
+[architecture](docs/architecture.md), "Testing"; the runs that removed a guard and watched the tests fail are in
+[agentic SDLC](docs/agentic-sdlc.md), "Red runs".
 
 A mutation report on the domain (229 small deliberate bugs, of which 228 are caught; the one survivor changes no
 behaviour) reruns in under a minute from Git Bash or any POSIX shell, in a throwaway Linux container. It prints
-the score and any survivors, and writes nothing into the repository:
+the counts as JSON (`"killed": 228`, `"survived": 1`, `"total": 229`), then the name of each survivor, and writes
+nothing into the repository:
 
 ```bash
 git ls-files -z | tar --null -T - -cf - | docker run --rm -i -e UV_LINK_MODE=copy -e UV_PYTHON_DOWNLOADS=never \
-  python:3.15-slim-trixie sh -c 'pip install -q uv==0.13.1 && mkdir /work && tar -x -C /work && cd /work \
-  && uv sync --locked -q && uv run mutmut run > /dev/null 2>&1; uv run mutmut export-cicd-stats > /dev/null; \
-  cat mutants/mutmut-cicd-stats.json; uv run mutmut results'
+  python:3.15-slim-trixie sh -c 'pip install -q --root-user-action=ignore uv==0.13.1 && mkdir /work \
+  && tar -x -C /work && cd /work && uv sync --locked -q && uv run mutmut run > /dev/null 2>&1; \
+  uv run mutmut export-cicd-stats > /dev/null; cat mutants/mutmut-cicd-stats.json; echo; uv run mutmut results'
 ```
 
 ## Assumptions
@@ -104,6 +120,7 @@ The requirements leave these open; each is our reading, with its cost.
 | What the mortgage process reads | The approved discount, or `NONE` for anything not approved (no request, pending, declined) | It pulls when it prices an offer |
 | Identity | `X-User-Id` against seeded users, only with `DEMO_IDENTITY=true` | Anyone can act as anyone in the demo |
 | Time and money | UTC times from the server; integer basis points | Percentages only in the page |
+| Calling systems' timeout | About 10 seconds; the service's own limits, and the one case that can pass it, are in [architecture](docs/architecture.md), "Time limits" | The real timeout is unknown; the limits are set in one place |
 
 How to read `latest_decision`, the three names for who decided and when, and the queue order after a
 resubmission: [architecture](docs/architecture.md), "Reading a response" and "Listing".
@@ -126,7 +143,9 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 - **409 `request-exists` on a "free" application:** it was used earlier. Pick another of MA-1006 to MA-1020, or reset.
 - **`uv sync` fails on Windows on ARM:** the database driver has no build there; run the service with Docker.
 - **The integration tests fail at start-up:** Docker is not running.
-- **Git Bash rewrites the `/work` paths** in the mutation command: put `MSYS_NO_PATHCONV=1` before `docker`.
+- **`curl -I` gets 405:** the service answers GET, and `curl -I` sends HEAD. Use `curl -i`, or a browser.
+- **`curl` to `localhost` takes about 0.2 s on Windows:** it tries IPv6 first, and the port is published on
+  `127.0.0.1` only. Use `http://127.0.0.1:8000`; the service itself answers in a few milliseconds.
 
 ## Where to read more
 
@@ -136,22 +155,5 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 | [`docs/architecture.md`](docs/architecture.md) | Diagrams, the API in detail, time limits, logging, security, testing, and the rules nobody may break |
 | [`docs/production-readiness.md`](docs/production-readiness.md) | What changes before production, ranked by risk |
 | [`docs/agentic-sdlc.md`](docs/agentic-sdlc.md) | How AI agents built this under guardrails, how their output was checked, and what risks remain |
+| [`docs/history.md`](docs/history.md) | The phases, decisions and audit findings that commit messages name, and what became of each finding |
 | [`AGENTS.md`](AGENTS.md) | The working rules for any agent or person changing the code |
-
-## Time spent
-
-| Day | Work | Time |
-| --- | --- | --- |
-| Day 1, 17 October 2026 | Design: requirements, data model, API, deep dives, scope, build plan | about 6 h |
-| Day 2, 18 October 2026 | Review of the build plan, version re-check | 0.5 h |
-| | P1, skeleton and guardrails | 1.4 h |
-| | P2, domain core | 0.75 h |
-| | P3, create and read | 1.5 h |
-| | P4, revise and decide | 1.8 h |
-| | P5, proving the guarantees | 1.5 h |
-| | P7, the page | 2.4 h |
-| | Independent audit against the requirements | 0.8 h |
-| | P8a, the audit's fixes, mutation testing, final review | 1.2 h |
-| | P6, these documents | 1.3 h |
-
-The release check and the total follow.

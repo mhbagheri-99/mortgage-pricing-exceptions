@@ -40,12 +40,12 @@ def counts(engine: Engine) -> tuple[int, int, int, int]:
 
 
 def test_seed_runs_twice(engine: Engine) -> None:
-    """Twenty applications, four of them with a seeded request: sixteen stay free for a live walk-through,
+    """Thirty applications, fourteen of them with a seeded request: sixteen stay free for a live walk-through,
     because each application takes one request for good."""
     seed(engine)
-    assert counts(engine) == (6, 20, 4, 7)
+    assert counts(engine) == (6, 30, 14, 19)
     seed(engine)
-    assert counts(engine) == (6, 20, 4, 7)
+    assert counts(engine) == (6, 30, 14, 19)
 
 
 def test_seed_leaves_a_changed_seeded_request_alone(engine: Engine) -> None:
@@ -58,7 +58,7 @@ def test_seed_leaves_a_changed_seeded_request_alone(engine: Engine) -> None:
     )
     assert revised.status_code == 200
     seed(engine)
-    assert counts(engine) == (6, 20, 4, 8)
+    assert counts(engine) == (6, 30, 14, 20)
     again = client.get(f"{REQUESTS}/{seeded_id(1002)}", headers={"X-User-Id": "rm.anna"}).json()
     assert (again["revision"], again["discount_bps"]) == (2, 30)
     assert [event["event_type"] for event in again["history"]] == ["SUBMITTED", "AMENDED"]

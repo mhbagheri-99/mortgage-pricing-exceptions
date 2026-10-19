@@ -28,7 +28,7 @@ from testfacts import facts  # noqa: E402
 
 # The last finished build phase. Every requirement whose first-tested phase is at or before it must have a
 # test. Moving it on needs your approval: this file is a guardrail file, so editing it asks you first.
-LAST_FINISHED_PHASE = 7
+LAST_FINISHED_PHASE = 8
 
 REQUIREMENT_ROW = re.compile(r"^\|\s*(FR-\d+|N\d+)\s*\|.*\|\s*P(\d)\s*\|$")
 FAST_TEST_DIRS = ("tests/domain", "tests/agentic")

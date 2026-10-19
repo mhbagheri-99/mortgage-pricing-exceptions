@@ -48,7 +48,7 @@ from pricing_exceptions.db import requests
 from pricing_exceptions.domain import rules
 from pricing_exceptions.domain.model import Actor, Outcome, PricingExceptionRequest, RequestEvent, Role
 
-SEEDED = (4, 7)  # requests and history events after the seed
+SEEDED = (14, 19)  # requests and history events after the seed
 RESULT_SECONDS = 10  # how long a test waits for a thread's answer: past the 8 s budget, so N9 fails first
 BUDGET_SECONDS = 8  # N9: no call takes longer (docs/architecture.md, "Time limits")
 POOL_CONNECTIONS = 15  # every connection the engine's pool can give: pool_size 5 plus max_overflow 10
@@ -153,7 +153,7 @@ def test_identical_creates_at_the_same_moment_give_one_request(
         response = waiting.result(timeout=RESULT_SECONDS)
     assert (response.status_code, response.headers.get("Idempotent-Replayed")) == (201, "true")
     assert response.json()["id"] == str(first)
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
 
 @pytest.mark.req(id="N2")
@@ -171,7 +171,7 @@ def test_a_create_waiting_on_one_that_rolls_back_creates_its_own(
     assert response.status_code == 201
     assert "Idempotent-Replayed" not in response.headers
     assert response.json()["id"] != str(first)
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
 
 @pytest.mark.req(id="N3")
@@ -326,10 +326,11 @@ def test_a_wait_past_lock_timeout_is_503(
 def test_a_wait_for_a_pooled_connection_past_pool_timeout_is_503(
     client: TestClient, engine: Engine, caplog: pytest.LogCaptureFixture
 ) -> None:
-    """Time limits: with every connection the pool can give in use, a write waits 3 s (pool_timeout) for
-    one, gives up with the pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s
-    budget, with nothing written. The connections are held in an ExitStack, so a failing test still hands them
-    all back to the next test."""
+    """Time limits: with every connection the pool can give in use, a write's first checkout (the demo
+    identity's user lookup, before the write's own transaction) waits 3 s (pool_timeout), gives up with the
+    pool's TimeoutError and is refused with 503 and Retry-After, well inside the 8 s budget, with nothing
+    written. The connections are held in an ExitStack, so a failing test still hands them all back to the next
+    test."""
     with ExitStack() as held:
         for _ in range(POOL_CONNECTIONS):
             held.enter_context(engine.connect())
@@ -418,7 +419,7 @@ def test_smoke_eight_identical_creates_at_once(client: TestClient, engine: Engin
     assert [response.status_code for response in responses] == [201] * 8
     assert len({response.json()["id"] for response in responses}) == 1
     assert sum(response.headers.get("Idempotent-Replayed") == "true" for response in responses) == 7
-    assert stored(engine) == (5, 8)
+    assert stored(engine) == (15, 20)
 
 
 def test_smoke_eight_decisions_at_once(client: TestClient, engine: Engine) -> None:

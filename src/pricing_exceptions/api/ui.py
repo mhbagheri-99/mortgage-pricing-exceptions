@@ -52,7 +52,7 @@ def install(app: FastAPI, engine: Engine, *, demo_identity: bool) -> None:
         # (docs/architecture.md, "Endpoints").
         @app.get("/demo/users", include_in_schema=False)
         def demo_users() -> list[DemoUser]:
-            """Every seeded user, for the page's acting-as switcher. No X-User-Id: nobody is chosen yet."""
+            """Every staff user, for the page's acting-as switcher. No X-User-Id: nobody is chosen yet."""
             return [DemoUser.of(user) for user in queries.list_users(engine)]
 
     app.mount("/ui", PageFiles(directory=UI_DIR, html=True), name="ui")
