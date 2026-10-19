@@ -50,12 +50,20 @@ docker compose down -v
   a CDN, so it needs internet access; the page does not.
 - **[`docs/demo.http`](docs/demo.http)**: the 12-step demo as plain HTTP calls, one click each in VS Code's REST
   Client extension. A test replays the same steps, so the demo cannot silently break. Without VS Code, send the same
-  calls from Swagger, or with curl from Git Bash or any POSIX shell; step 2, for example:
+  calls from Swagger, or from a terminal; step 2, for example, from Git Bash, macOS or Linux:
 
   ```bash
   curl -i http://localhost:8000/api/v1/pricing-exception-requests -H "X-User-Id: lead.fatima" \
     -H "Content-Type: application/json" \
     -d '{"application_id": "MA-1006", "discount_bps": 25, "reason": "Retention: competitor offer 25 bps below standard"}'
+  ```
+
+  The same call from Windows PowerShell, where `curl` is another command:
+
+  ```powershell
+  Invoke-WebRequest -UseBasicParsing -Method Post -Uri http://localhost:8000/api/v1/pricing-exception-requests `
+    -Headers @{ "X-User-Id" = "lead.fatima" } -ContentType "application/json" `
+    -Body '{"application_id": "MA-1006", "discount_bps": 25, "reason": "Retention: competitor offer 25 bps below standard"}'
   ```
 
 Every call names its user in the `X-User-Id` header, a stand-in for real sign-in that works only because Compose
@@ -91,15 +99,21 @@ each requirement; every test that proves one carries its id. What each level of 
 [agentic SDLC](docs/agentic-sdlc.md), "Red runs".
 
 A mutation report on the domain (229 small deliberate bugs, of which 228 are caught; the one survivor changes no
-behaviour) reruns in under a minute from Git Bash or any POSIX shell, in a throwaway Linux container. It prints
-the counts as JSON (`"killed": 228`, `"survived": 1`, `"total": 229`), then the name of each survivor, and writes
-nothing into the repository:
+behaviour) reruns in under a minute in a throwaway Linux container. It prints the counts as JSON (`"killed": 228`,
+`"survived": 1`, `"total": 229`), then the name of each survivor, and writes nothing into the repository. From Git
+Bash, macOS or Linux (it sends the tracked files):
 
 ```bash
 git ls-files -z | tar --null -T - -cf - | docker run --rm -i -e UV_LINK_MODE=copy -e UV_PYTHON_DOWNLOADS=never \
   python:3.15-slim-trixie sh -c 'pip install -q --root-user-action=ignore uv==0.13.1 && mkdir /work \
   && tar -x -C /work && cd /work && uv sync --locked -q && uv run mutmut run > /dev/null 2>&1; \
   uv run mutmut export-cicd-stats > /dev/null; cat mutants/mutmut-cicd-stats.json; echo; uv run mutmut results'
+```
+
+From Windows PowerShell (it copies the folder as it is, without `.venv` and `.git`):
+
+```powershell
+docker run --rm -v "${PWD}:/src:ro" -e UV_LINK_MODE=copy -e UV_PYTHON_DOWNLOADS=never python:3.15-slim-trixie sh -c 'pip install -q --root-user-action=ignore uv==0.13.1 && mkdir /work && tar -C /src --exclude=./.venv --exclude=./.git --exclude=./mutants -cf - . | tar -x -C /work && cd /work && uv sync --locked -q && uv run mutmut run > /dev/null 2>&1; uv run mutmut export-cicd-stats > /dev/null; cat mutants/mutmut-cicd-stats.json; echo; uv run mutmut results'
 ```
 
 ## Assumptions
@@ -143,6 +157,8 @@ every wait (503 rather than a hung call), and the page's `permissions`, so the p
 - **409 `request-exists` on a "free" application:** it was used earlier. Pick another of MA-1006 to MA-1020, or reset.
 - **`uv sync` fails on Windows on ARM:** the database driver has no build there; run the service with Docker.
 - **The integration tests fail at start-up:** Docker is not running.
+- **`curl` fails in Windows PowerShell:** there `curl` is another command. Type `curl.exe`, or use the
+  `Invoke-WebRequest` example above.
 - **`curl -I` gets 405:** the service answers GET, and `curl -I` sends HEAD. Use `curl -i`, or a browser.
 - **`curl` to `localhost` takes about 0.2 s on Windows:** it tries IPv6 first, and the port is published on
   `127.0.0.1` only. Use `http://127.0.0.1:8000`; the service itself answers in a few milliseconds.
