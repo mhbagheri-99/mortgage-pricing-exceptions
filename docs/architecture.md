@@ -307,7 +307,8 @@ anything else leaves every call 401).
 **Start-up.** The container's entry point (`python -m pricing_exceptions.startup`) applies the migrations, runs
 the seed, then serves on port 8000. The seed only inserts what is missing, so a restart or a second
 `docker compose up` changes nothing, even after a demo changed the seeded requests. To run against a PostgreSQL 17
-or later of your own, with `DATABASE_URL` and `DEMO_IDENTITY` set: `uv run alembic upgrade head`, then
+or later of your own, with `DATABASE_URL` and `DEMO_IDENTITY` set (`export DATABASE_URL=...` in Git Bash, macOS or
+Linux; `$env:DATABASE_URL = "..."` in Windows PowerShell): `uv run alembic upgrade head`, then
 `uv run python -m pricing_exceptions.db.seed`, then `uv run uvicorn --factory pricing_exceptions.main:build_app`,
 which listens on `127.0.0.1` by default. Do not use `startup.py` outside a container: it listens on every interface,
 which a container needs and a laptop with the demo identity on must not do.
